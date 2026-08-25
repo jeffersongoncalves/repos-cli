@@ -44,22 +44,55 @@ repos self-update
 
 Clones use your local SSH key, same as any `git clone`. The saved token is
 only used for API calls (listing repos, listing issues) — one login per
-host you use:
+host you use.
 
-```bash
-repos auth:github:login
-repos auth:gitlab:login
-repos auth:bitbucket:login
-repos auth:show
-```
+#### GitHub
 
-GitHub and GitLab also support device flow login — opens a verification URL
-and a short code instead of asking for a token, and the saved token is
-refreshed automatically once it expires:
+Device flow (recommended — nothing to create or manage):
 
 ```bash
 repos auth:github:login --device
+```
+
+Opens a verification URL and a short code; approve it in the browser. The
+saved token refreshes itself automatically once it expires.
+
+Personal access token instead:
+
+1. [Create a classic token](https://github.com/settings/tokens/new) with the
+   `repo` scope (covers repos, issues, and search)
+2. `repos auth:github:login` and paste it
+
+#### GitLab
+
+Device flow (recommended):
+
+```bash
 repos auth:gitlab:login --device
+```
+
+Personal access token instead:
+
+1. GitLab → Settings → [Access Tokens](https://gitlab.com/-/user_settings/personal_access_tokens) → create one with the `read_api` scope
+2. `repos auth:gitlab:login` and paste it
+
+#### Bitbucket
+
+No device flow — Bitbucket doesn't support it. API token only:
+
+1. Bitbucket → Personal settings → Security → [API tokens](https://support.atlassian.com/bitbucket-cloud/docs/api-tokens/) → **Create API token with scopes**
+2. Name it (e.g. `repos-cli`), select **Bitbucket** as the app, and grant these [permissions](https://support.atlassian.com/bitbucket-cloud/docs/api-token-permissions/) — Write does **not** imply Read, each is separate:
+
+| Scope | Permission | Scope ID |
+|-------|-----------|----------|
+| Repositories | Read | `read:repository:bitbucket` |
+| Issues | Read | `read:issue:bitbucket` |
+
+3. `repos auth:bitbucket:login` — prompts for your **Atlassian account email**
+   (not your Bitbucket username) and the token
+
+```bash
+repos auth:show
 ```
 
 Credentials are stored in `~/.repos-cli/config.json` (mode `0600`).
