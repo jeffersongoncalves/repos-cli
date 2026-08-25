@@ -3,6 +3,7 @@
 namespace App\Services\Hosts;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\BadResponseException;
 use RuntimeException;
 
 /**
@@ -84,15 +85,23 @@ abstract class AbstractDeviceAuth
     }
 
     /**
+     * Some hosts (GitLab) answer non-terminal states like 'authorization_pending'
+     * with a 4xx status instead of 200, so the error body must still be read back
+     * on a bad-response exception rather than left to bubble up.
+     *
      * @param  array<string, string>  $data
      * @return array<string, mixed>
      */
     protected function post(string $url, array $data): array
     {
-        $response = $this->client->post($url, [
-            'headers' => ['Accept' => 'application/json'],
-            'form_params' => $data,
-        ]);
+        try {
+            $response = $this->client->post($url, [
+                'headers' => ['Accept' => 'application/json'],
+                'form_params' => $data,
+            ]);
+        } catch (BadResponseException $e) {
+            $response = $e->getResponse();
+        }
 
         return json_decode($response->getBody()->getContents(), true) ?? [];
     }

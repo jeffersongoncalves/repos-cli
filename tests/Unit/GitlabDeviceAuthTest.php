@@ -34,3 +34,12 @@ it('refreshes an access token', function () {
 
     expect($auth->refreshToken('glrt_old'))->toMatchArray(['access_token' => 'glpat_new']);
 });
+
+it('polls through a 400 authorization_pending response, unlike GitHub which uses 200', function () {
+    $auth = makeGitlabDeviceAuth([
+        new Response(400, [], json_encode(['error' => 'authorization_pending'])),
+        new Response(200, [], json_encode(['access_token' => 'glpat_new', 'refresh_token' => 'glrt_new', 'expires_in' => 7200])),
+    ]);
+
+    expect($auth->pollForToken('devcode', 0))->toMatchArray(['access_token' => 'glpat_new']);
+});
