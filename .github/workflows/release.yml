@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Explicit version (e.g. 0.3.0). Leave blank to auto-bump the patch.'
+        description: 'Explicit version (e.g. 1.0.0). Leave blank to auto-bump the patch.'
         required: false
 
 permissions: write-all
