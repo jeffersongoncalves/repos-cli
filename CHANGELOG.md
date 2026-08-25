@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.1.0] - 2026-08-25
+## [1.2.0] - 2026-08-25
 
 ### Other
 
@@ -64,5 +64,14 @@ one this started with.
 auth:github:login --device opens a verification URL and code instead of
 requiring a personal access token. HostClientFactory refreshes the stored
 token transparently once it expires.
+- Release 1.1.0
+- Fix PHPStan: interval key always exists in device code response
+- Add GitLab device flow login with automatic token refresh
+
+auth:gitlab:login --device mirrors the GitHub device flow. Extracted the
+shared RFC 8628 polling/refresh logic into AbstractDeviceAuth so both hosts
+reuse it. GitlabClient now sends OAuth tokens as Authorization: Bearer
+instead of PRIVATE-TOKEN, which also works for existing personal access
+tokens.
 
 
