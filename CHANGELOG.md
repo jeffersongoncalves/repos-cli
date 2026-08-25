@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.0.1] - 2026-08-25
+## [1.1.0] - 2026-08-25
 
 ### Other
 
@@ -58,5 +58,11 @@ one this started with.
 - run-tests.yml: single PHP version (8.4) instead of a 8.2/8.4 matrix.
 - AGENTS.md: agent-facing usage guide (flag syntax, common mistakes, exit
   codes), same shape as db-cli's.
+- Release 1.0.1
+- Add GitHub device flow login with automatic token refresh
+
+auth:github:login --device opens a verification URL and code instead of
+requiring a personal access token. HostClientFactory refreshes the stored
+token transparently once it expires.
 
 
