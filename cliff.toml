@@ -31,7 +31,7 @@ tag_pattern = "[0-9]*"
 topo_order = false
 sort_commits = "oldest"
 commit_parsers = [
-    { message = "^Release v", skip = true },
+    { message = "^Release ", skip = true },
     { message = "^Fix styling$", skip = true },
     { message = "^Generate build$", skip = true },
     { message = "^Update CHANGELOG$", skip = true },
