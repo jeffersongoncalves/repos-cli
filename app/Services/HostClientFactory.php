@@ -4,14 +4,28 @@ namespace App\Services;
 
 use App\Contracts\HostClient;
 use App\Enums\GitHost;
+use App\Services\Hosts\AbstractDeviceAuth;
 use App\Services\Hosts\BitbucketClient;
 use App\Services\Hosts\GithubClient;
 use App\Services\Hosts\GithubDeviceAuth;
 use App\Services\Hosts\GitlabClient;
+use App\Services\Hosts\GitlabDeviceAuth;
 use JeffersonGoncalves\LaravelZero\Credentials\AuthenticationException;
+use LogicException;
 
 class HostClientFactory
 {
+    /**
+     * Hosts that support the OAuth device flow, keyed to the client that can refresh
+     * an expired access token for them.
+     *
+     * @var array<string, class-string<AbstractDeviceAuth>>
+     */
+    protected const DEVICE_AUTH_CLIENTS = [
+        'github' => GithubDeviceAuth::class,
+        'gitlab' => GitlabDeviceAuth::class,
+    ];
+
     public function __construct(
         protected AuthService $authService,
     ) {}
@@ -24,8 +38,8 @@ class HostClientFactory
             throw new AuthenticationException("Not authenticated with {$host->label()}. Run 'auth:{$host->value}:login' first.");
         }
 
-        if ($host === GitHost::Github && $this->githubTokenExpired($data)) {
-            $data = $this->refreshGithubToken($data);
+        if ($this->tokenExpired($data)) {
+            $data = $this->refreshToken($host, $data);
         }
 
         return match ($host) {
@@ -38,7 +52,7 @@ class HostClientFactory
     /**
      * @param  array<string, string>  $data
      */
-    protected function githubTokenExpired(array $data): bool
+    protected function tokenExpired(array $data): bool
     {
         return ! empty($data['refresh_token']) && ! empty($data['expires_at']) && (int) $data['expires_at'] <= time();
     }
@@ -47,9 +61,12 @@ class HostClientFactory
      * @param  array<string, string>  $data
      * @return array<string, string>
      */
-    protected function refreshGithubToken(array $data): array
+    protected function refreshToken(GitHost $host, array $data): array
     {
-        $refreshed = (new GithubDeviceAuth)->refreshToken($data['refresh_token']);
+        $authClass = self::DEVICE_AUTH_CLIENTS[$host->value]
+            ?? throw new LogicException("No device flow refresh available for {$host->label()}.");
+
+        $refreshed = (new $authClass)->refreshToken($data['refresh_token']);
 
         $data = [
             'token' => $refreshed['access_token'],
@@ -57,7 +74,7 @@ class HostClientFactory
             'expires_at' => isset($refreshed['expires_in']) ? (string) (time() + (int) $refreshed['expires_in']) : '',
         ];
 
-        $this->authService->saveHost(GitHost::Github, $data);
+        $this->authService->saveHost($host, $data);
 
         return $data;
     }

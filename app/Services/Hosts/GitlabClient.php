@@ -83,7 +83,7 @@ class GitlabClient extends AbstractApiClient implements HostClient
 
     protected function authHeaders(): array
     {
-        return ['PRIVATE-TOKEN' => $this->token];
+        return ['Authorization' => "Bearer {$this->token}"];
     }
 
     protected function newApiException(int $statusCode, array $body): ApiException
