@@ -1,0 +1,87 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0A0A0B"/>
+      <stop offset="1" stop-color="#18181B"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FBBF24"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FBBF24" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="#FBBF24" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#27272A" stroke-width="0.6"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.4"/>
+  <ellipse cx="950" cy="310" rx="410" ry="290" fill="url(#glow)"/>
+
+  <!-- top label -->
+  <circle cx="84" cy="66" r="4" fill="#FBBF24"/>
+  <text x="102" y="71" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="500" letter-spacing="2" fill="#A1A1AA">CLI TOOL</text>
+
+  <!-- title -->
+  <text x="80" y="280" font-family="Inter, system-ui, sans-serif" font-size="76" font-weight="800" letter-spacing="-2" fill="#FAFAFA">repos-cli</text>
+
+  <!-- tagline -->
+  <text x="80" y="336" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="600" fill="#FBBF24">Bulk git across every host</text>
+
+  <!-- description -->
+  <text x="80" y="376" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="400" fill="#A1A1AA">Clone, pull, and list open issues across hundreds of repos</text>
+  <text x="80" y="400" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="400" fill="#A1A1AA">on GitHub, GitLab, and Bitbucket &#8212; from one terminal</text>
+
+  <!-- footer pills -->
+  <g font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="500">
+    <rect x="80" y="560" width="92" height="30" rx="15" fill="#18181B" stroke="#27272A"/>
+    <text x="126" y="580" text-anchor="middle" fill="#A1A1AA">PHP 8.4</text>
+
+    <rect x="182" y="560" width="128" height="30" rx="15" fill="#18181B" stroke="#27272A"/>
+    <text x="246" y="580" text-anchor="middle" fill="#A1A1AA">Laravel Zero</text>
+
+    <rect x="320" y="560" width="240" height="30" rx="15" fill="#18181B" stroke="#FBBF24"/>
+    <text x="440" y="580" text-anchor="middle" fill="#FBBF24">GitHub &#183; GitLab &#183; Bitbucket</text>
+
+    <rect x="570" y="560" width="60" height="30" rx="15" fill="#18181B" stroke="#27272A"/>
+    <text x="600" y="580" text-anchor="middle" fill="#A1A1AA">MIT</text>
+  </g>
+
+  <!-- username -->
+  <text x="1120" y="595" text-anchor="end" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="500" fill="#52525B">@jeffersongoncalves</text>
+
+  <!-- terminal window -->
+  <g>
+    <rect x="680" y="140" width="460" height="330" rx="10" fill="#18181B" stroke="#27272A"/>
+    <rect x="680" y="140" width="460" height="36" rx="10" fill="#0A0A0B"/>
+    <rect x="680" y="166" width="460" height="10" fill="#0A0A0B"/>
+    <circle cx="702" cy="158" r="5" fill="#EF4444"/>
+    <circle cx="720" cy="158" r="5" fill="#FBBF24"/>
+    <circle cx="738" cy="158" r="5" fill="#10B981"/>
+
+    <g font-family="ui-monospace, monospace" font-size="14">
+      <text x="702" y="204" fill="#FBBF24">$ repos clone acme --host=github</text>
+
+      <text x="702" y="234" fill="#71717A">  acme/widgets</text>
+      <text x="960" y="234" fill="#10B981">pulled</text>
+
+      <text x="702" y="260" fill="#71717A">  acme/api</text>
+      <text x="960" y="260" fill="#10B981">cloned</text>
+
+      <text x="702" y="286" fill="#71717A">  acme/docs</text>
+      <text x="960" y="286" fill="#10B981">pulled</text>
+
+      <text x="702" y="312" fill="#71717A">  acme/billing</text>
+      <text x="960" y="312" fill="#10B981">cloned</text>
+
+      <text x="702" y="350" fill="#FBBF24">$ repos issues acme --host=github</text>
+
+      <text x="702" y="380" fill="#52525B">  REPO           #    TITLE</text>
+      <text x="702" y="404" fill="#A1A1AA">  acme/api       142  Fix retry backoff</text>
+      <text x="702" y="428" fill="#A1A1AA">  acme/widgets   88   Add dark mode</text>
+    </g>
+  </g>
+</svg>
