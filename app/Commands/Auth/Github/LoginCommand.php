@@ -56,7 +56,7 @@ class LoginCommand extends Command
 
             $this->components->info("Open {$device['verification_uri']} and enter code: {$device['user_code']}");
 
-            $token = $auth->pollForToken($device['device_code'], $device['interval'] ?? 5);
+            $token = $auth->pollForToken($device['device_code'], $device['interval']);
 
             $username = (new GithubClient($token['access_token']))->currentUsername();
         } catch (Throwable $e) {
