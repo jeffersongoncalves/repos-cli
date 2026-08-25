@@ -53,6 +53,15 @@ repos auth:bitbucket:login
 repos auth:show
 ```
 
+GitHub and GitLab also support device flow login — opens a verification URL
+and a short code instead of asking for a token, and the saved token is
+refreshed automatically once it expires:
+
+```bash
+repos auth:github:login --device
+repos auth:gitlab:login --device
+```
+
 Credentials are stored in `~/.repos-cli/config.json` (mode `0600`).
 
 ### Clone
@@ -89,9 +98,9 @@ repos issues acme --host=github
 
 | Host | Auth | Notes |
 |------|------|-------|
-| GitHub | Personal access token | Bulk clone/issues via `orgs/{org}/repos` or `users/{user}/repos`; issues search via `search/issues`. |
-| GitLab | Personal access token | Bulk clone/issues via `groups/{ns}/projects` or `users/{ns}/projects`. |
-| Bitbucket | Account email + API token | Same auth shape as `bb-cli`. Issues skipped for repos with no issue tracker enabled. |
+| GitHub | Personal access token, or `--device` flow | Bulk clone/issues via `orgs/{org}/repos` or `users/{user}/repos`; issues search via `search/issues`. |
+| GitLab | Personal access token, or `--device` flow | Bulk clone/issues via `groups/{ns}/projects` or `users/{ns}/projects`. |
+| Bitbucket | Account email + API token | Same auth shape as `bb-cli`. Issues skipped for repos with no issue tracker enabled. No device flow — Bitbucket doesn't support it. |
 
 ## Development
 
