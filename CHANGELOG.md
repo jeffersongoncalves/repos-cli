@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.3] - 2026-08-26
+
+### Other
+
+- Fix FAIL never showing in clone/pull task output
+
 ## [1.2.2] - 2026-08-26
 
 ### Other
