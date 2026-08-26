@@ -113,10 +113,12 @@ repos clone acme/widgets --host=github
 repos clone acme --host=github --path=~/code/acme
 ```
 
+Submodules are cloned recursively (`git clone --recurse-submodules`).
+
 ### Pull
 
 ```bash
-# git pull --all on every repo found one level under a folder
+# git pull --all --recurse-submodules on every repo found one level under a folder
 repos pull ~/code/acme
 ```
 
