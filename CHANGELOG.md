@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.5] - 2026-08-26
+
+### Other
+
+- Support multiple named credential profiles per host
+
 ## [1.2.4] - 2026-08-26
 
 ### Other
