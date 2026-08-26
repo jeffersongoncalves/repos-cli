@@ -16,6 +16,7 @@ class IssuesCommand extends Command
     protected $signature = 'issues
         {target : owner/repo for a single repo, or a bare owner/org for every repo}
         {--host= : github|gitlab|bitbucket}
+        {--profile=default : Named credential profile to use for the API calls}
         {--qualifier=org : (GitHub bulk search only) org or user}';
 
     protected $description = 'List open issues for a repo, or across every repo of an owner/org';
@@ -25,7 +26,7 @@ class IssuesCommand extends Command
         return $this->handleApiErrors(function () use ($factory) {
             $target = $this->argument('target');
             $host = $this->resolveHost($this->option('host'), $target);
-            $client = $factory->make($host);
+            $client = $factory->make($host, (string) $this->option('profile'));
 
             if (str_contains($target, '/')) {
                 [$owner, $repo] = explode('/', $target, 2);

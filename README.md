@@ -97,9 +97,32 @@ it's what the login check (`GET /2.0/user`) needs to verify the token.
 
 ```bash
 repos auth:show
+
+# Confirm every saved credential still works (pings each host's API,
+# never prints the token/app password)
+repos auth:show --verify
 ```
 
 Credentials are stored in `~/.repos-cli/config.json` (mode `0600`).
+
+#### Multiple credentials per host
+
+Every `auth:*:login` command takes `--profile=<name>` (default: `default`), so
+you can keep more than one credential for the same host — e.g. a personal
+GitHub device-flow login alongside a work PAT for an org with OAuth App
+restrictions:
+
+```bash
+repos auth:github:login --device                       # profile "default"
+repos auth:github:login --profile=work                  # a second, separate token
+
+repos clone acme --host=github --profile=work --path=~/code/acme
+repos issues acme --host=github --profile=work
+```
+
+`repos auth:show` lists every profile per host. Commands that hit a host's
+API (`clone` for bulk owner/org clones, `issues`) accept `--profile=`; it
+defaults to `default` when omitted.
 
 ### Clone
 

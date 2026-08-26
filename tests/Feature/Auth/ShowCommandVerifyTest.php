@@ -19,7 +19,7 @@ it('shows valid and the live username when --verify succeeds', function () {
     $client->shouldReceive('currentUsername')->andReturn('octocat');
 
     $factory = Mockery::mock(HostClientFactory::class);
-    $factory->shouldReceive('make')->with(GitHost::Github)->andReturn($client);
+    $factory->shouldReceive('make')->with(GitHost::Github, Credentials::DEFAULT_PROFILE)->andReturn($client);
     $this->app->instance(HostClientFactory::class, $factory);
 
     // A single doWrite() call renders the whole table row, so "valid" and
@@ -45,7 +45,7 @@ it('shows invalid with the API error message when --verify fails, never the toke
     );
 
     $factory = Mockery::mock(HostClientFactory::class);
-    $factory->shouldReceive('make')->with(GitHost::Github)->andReturn($client);
+    $factory->shouldReceive('make')->with(GitHost::Github, Credentials::DEFAULT_PROFILE)->andReturn($client);
     $this->app->instance(HostClientFactory::class, $factory);
 
     $this->artisan('auth:show', ['--verify' => true])

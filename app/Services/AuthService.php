@@ -19,9 +19,9 @@ class AuthService extends AbstractAuthService
     /**
      * @param  array<string, string>  $data
      */
-    public function saveHost(GitHost $host, array $data): Credentials
+    public function saveHost(GitHost $host, array $data, string $profile = Credentials::DEFAULT_PROFILE): Credentials
     {
-        $credentials = ($this->load() ?? new Credentials)->withHost($host, $data);
+        $credentials = ($this->load() ?? new Credentials)->withHost($host, $data, $profile);
 
         $this->save($credentials);
 

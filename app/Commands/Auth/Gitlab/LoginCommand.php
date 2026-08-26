@@ -2,6 +2,7 @@
 
 namespace App\Commands\Auth\Gitlab;
 
+use App\DTOs\Credentials;
 use App\Enums\GitHost;
 use App\Services\AuthService;
 use App\Services\Hosts\GitlabClient;
@@ -14,18 +15,21 @@ use function Laravel\Prompts\password;
 class LoginCommand extends Command
 {
     protected $signature = 'auth:gitlab:login
-        {--device : Authenticate via GitLab device flow instead of a personal access token}';
+        {--device : Authenticate via GitLab device flow instead of a personal access token}
+        {--profile=default : Save under a named profile, to keep multiple GitLab credentials side by side}';
 
     protected $description = 'Save a GitLab personal access token';
 
     public function handle(AuthService $authService): int
     {
+        $profile = (string) $this->option('profile') ?: Credentials::DEFAULT_PROFILE;
+
         return $this->option('device')
-            ? $this->handleDeviceFlow($authService)
-            : $this->handleTokenFlow($authService);
+            ? $this->handleDeviceFlow($authService, $profile)
+            : $this->handleTokenFlow($authService, $profile);
     }
 
-    protected function handleTokenFlow(AuthService $authService): int
+    protected function handleTokenFlow(AuthService $authService, string $profile): int
     {
         $token = password(
             label: 'GitLab personal access token',
@@ -40,14 +44,14 @@ class LoginCommand extends Command
             return self::FAILURE;
         }
 
-        $authService->saveHost(GitHost::Gitlab, ['token' => $token]);
+        $authService->saveHost(GitHost::Gitlab, ['token' => $token], $profile);
 
-        $this->components->info("Authenticated as {$username}. Saved to {$authService->getConfigPath()}");
+        $this->components->info("Authenticated as {$username} (profile '{$profile}'). Saved to {$authService->getConfigPath()}");
 
         return self::SUCCESS;
     }
 
-    protected function handleDeviceFlow(AuthService $authService): int
+    protected function handleDeviceFlow(AuthService $authService, string $profile): int
     {
         $auth = new GitlabDeviceAuth;
 
@@ -69,9 +73,9 @@ class LoginCommand extends Command
             'token' => $token['access_token'],
             'refresh_token' => $token['refresh_token'] ?? '',
             'expires_at' => isset($token['expires_in']) ? (string) (time() + (int) $token['expires_in']) : '',
-        ]);
+        ], $profile);
 
-        $this->components->info("Authenticated as {$username}. Saved to {$authService->getConfigPath()}");
+        $this->components->info("Authenticated as {$username} (profile '{$profile}'). Saved to {$authService->getConfigPath()}");
 
         return self::SUCCESS;
     }

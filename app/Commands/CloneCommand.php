@@ -19,6 +19,7 @@ class CloneCommand extends Command
     protected $signature = 'clone
         {target : A git URL, an owner/repo, or a bare owner/org to bulk-clone}
         {--host= : github|gitlab|bitbucket (auto-detected from a full URL)}
+        {--profile=default : Named credential profile to use for the bulk-clone API calls}
         {--path= : Destination folder (default: current directory)}';
 
     protected $description = 'Clone a single repo, or every repo of an owner/org (already-cloned repos are pulled instead)';
@@ -53,7 +54,7 @@ class CloneCommand extends Command
     protected function cloneAllForOwner(HostClientFactory $factory, GitOperationsService $git, string $ownerOrOrg, string $destination): int
     {
         $host = $this->resolveHost($this->option('host'));
-        $client = $factory->make($host);
+        $client = $factory->make($host, (string) $this->option('profile'));
         $repos = $client->listRepos($ownerOrOrg);
 
         if ($repos === []) {

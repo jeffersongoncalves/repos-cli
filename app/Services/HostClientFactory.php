@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\HostClient;
+use App\DTOs\Credentials;
 use App\Enums\GitHost;
 use App\Services\Hosts\AbstractDeviceAuth;
 use App\Services\Hosts\BitbucketClient;
@@ -30,16 +31,17 @@ class HostClientFactory
         protected AuthService $authService,
     ) {}
 
-    public function make(GitHost $host): HostClient
+    public function make(GitHost $host, string $profile = Credentials::DEFAULT_PROFILE): HostClient
     {
-        $data = $this->authService->load()?->forHost($host);
+        $data = $this->authService->load()?->forHost($host, $profile);
 
         if (! $data) {
-            throw new AuthenticationException("Not authenticated with {$host->label()}. Run 'auth:{$host->value}:login' first.");
+            $hint = $profile === Credentials::DEFAULT_PROFILE ? '' : " (profile '{$profile}')";
+            throw new AuthenticationException("Not authenticated with {$host->label()}{$hint}. Run 'auth:{$host->value}:login' first.");
         }
 
         if ($this->tokenExpired($data)) {
-            $data = $this->refreshToken($host, $data);
+            $data = $this->refreshToken($host, $data, $profile);
         }
 
         return match ($host) {
@@ -61,7 +63,7 @@ class HostClientFactory
      * @param  array<string, string>  $data
      * @return array<string, string>
      */
-    protected function refreshToken(GitHost $host, array $data): array
+    protected function refreshToken(GitHost $host, array $data, string $profile): array
     {
         $authClass = self::DEVICE_AUTH_CLIENTS[$host->value]
             ?? throw new LogicException("No device flow refresh available for {$host->label()}.");
@@ -74,7 +76,7 @@ class HostClientFactory
             'expires_at' => isset($refreshed['expires_in']) ? (string) (time() + (int) $refreshed['expires_in']) : '',
         ];
 
-        $this->authService->saveHost($host, $data);
+        $this->authService->saveHost($host, $data, $profile);
 
         return $data;
     }
