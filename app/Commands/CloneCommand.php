@@ -3,6 +3,7 @@
 namespace App\Commands;
 
 use App\Concerns\ResolvesHost;
+use App\Concerns\RunsTasks;
 use App\DTOs\Repo;
 use App\Enums\GitHost;
 use App\Services\GitOperationsService;
@@ -13,7 +14,7 @@ use LaravelZero\Framework\Commands\Command;
 
 class CloneCommand extends Command
 {
-    use HandlesApiErrors, ResolvesHost, ResolvesPath;
+    use HandlesApiErrors, ResolvesHost, ResolvesPath, RunsTasks;
 
     protected $signature = 'clone
         {target : A git URL, an owner/repo, or a bare owner/org to bulk-clone}
@@ -44,7 +45,7 @@ class CloneCommand extends Command
             ? $target
             : $this->buildSshUrl($this->resolveHost($this->option('host')), $target);
 
-        $this->components->task("Cloning {$url}", fn () => $git->clone($url, $destination));
+        $this->runTask("Cloning {$url}", fn () => $git->clone($url, $destination));
 
         return self::SUCCESS;
     }
@@ -79,7 +80,7 @@ class CloneCommand extends Command
     {
         $path = $destination.DIRECTORY_SEPARATOR.$repo->name;
 
-        $this->components->task($repo->fullName(), fn () => $git->isGitRepo($path)
+        $this->runTask($repo->fullName(), fn () => $git->isGitRepo($path)
             ? $git->pull($path)
             : $git->clone($repo->sshUrl, $path));
     }

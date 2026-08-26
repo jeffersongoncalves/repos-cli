@@ -2,6 +2,7 @@
 
 namespace App\Commands;
 
+use App\Concerns\RunsTasks;
 use App\Services\GitOperationsService;
 use Illuminate\Support\Facades\File;
 use JeffersonGoncalves\LaravelZero\Console\ResolvesPath;
@@ -10,7 +11,7 @@ use LaravelZero\Framework\Commands\Command;
 
 class PullCommand extends Command
 {
-    use ResolvesPath;
+    use ResolvesPath, RunsTasks;
 
     protected $signature = 'pull {path? : Folder to scan for repos (default: current directory)}';
 
@@ -34,9 +35,7 @@ class PullCommand extends Command
 
         foreach ($repoDirs as $dir) {
             $label = (new RepositoryResolver($dir))->resolve()?->fullName() ?? basename($dir);
-            $ok = $git->pull($dir);
-
-            $this->components->task($label, fn () => $ok);
+            $ok = $this->runTask($label, fn () => $git->pull($dir));
 
             if (! $ok) {
                 $failures++;
