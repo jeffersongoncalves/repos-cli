@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.4] - 2026-08-26
+
+### Other
+
+- Add --verify to auth:show; wire tests/Feature into the test suite
+
 ## [1.2.3] - 2026-08-26
 
 ### Other
