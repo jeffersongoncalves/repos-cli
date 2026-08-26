@@ -85,8 +85,12 @@ No device flow — Bitbucket doesn't support it. API token only:
 
 | Scope | Permission | Scope ID |
 |-------|-----------|----------|
+| User | Read | `read:user:bitbucket` |
 | Repositories | Read | `read:repository:bitbucket` |
 | Issues | Read | `read:issue:bitbucket` |
+
+User Read is required even though the CLI never reads user data directly —
+it's what the login check (`GET /2.0/user`) needs to verify the token.
 
 3. `repos auth:bitbucket:login` — prompts for your **Atlassian account email**
    (not your Bitbucket username) and the token
