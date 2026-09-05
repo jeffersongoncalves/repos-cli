@@ -13,6 +13,13 @@ across hundreds of repos on GitHub, GitLab, and Bitbucket from one terminal
 Built with [Laravel Zero](https://laravel-zero.com) and modeled on the other
 CLIs in this monorepo.
 
+<p align="center">
+  <a href="https://github.com/jeffersongoncalves/repos-cli/actions"><img src="https://github.com/jeffersongoncalves/repos-cli/actions/workflows/run-tests.yml/badge.svg" alt="Tests" /></a>
+  <a href="https://packagist.org/packages/jeffersongoncalves/repos-cli"><img src="https://img.shields.io/packagist/dt/jeffersongoncalves/repos-cli" alt="Total Downloads" /></a>
+  <a href="https://github.com/jeffersongoncalves/repos-cli/blob/main/LICENSE"><img src="https://img.shields.io/github/license/jeffersongoncalves/repos-cli" alt="License" /></a>
+  <img src="https://img.shields.io/badge/php-%3E%3D8.2-8892BF" alt="PHP 8.2+" />
+</p>
+
 ## Install
 
 ### Global (recommended)
