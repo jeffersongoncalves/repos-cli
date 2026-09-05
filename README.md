@@ -6,6 +6,8 @@
 
 # repos-cli
 
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/jeffersongoncalves)
+
 A multi-host bulk git repository manager. Clone, pull, and list open issues
 across hundreds of repos on GitHub, GitLab, and Bitbucket from one terminal
 — no more `cd`-ing into 600 folders one at a time.
