@@ -1,5 +1,5 @@
 parameters:
     level: 5
+    # Only app/: Pest closures bind $this at runtime, which PHPStan cannot see (TestCall), like jira-cli.
     paths:
         - app
-        - tests
