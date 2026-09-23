@@ -57,7 +57,7 @@ class ShowCommand extends Command
             $username = $factory->make($host, $profile)->currentUsername();
 
             return [$host->label(), $profile, $this->colorize('valid', 'green'), $username];
-        } catch (ApiException|Throwable $e) {
+        } catch (Throwable $e) {
             $message = $e instanceof ApiException ? $e->getMessage() : 'request failed';
 
             return [$host->label(), $profile, $this->colorize("invalid ({$message})", 'red'), $data['username'] ?? '-'];
