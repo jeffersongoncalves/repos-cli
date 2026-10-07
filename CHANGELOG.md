@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.2] - 2026-10-07
+
+### Bug Fixes
+
+- **audit:** Check CI on the default branch HEAD commit
+
 ## [1.3.1] - 2026-10-07
 
 ### Features
