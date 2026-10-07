@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-10-07
+
+### Bug Fixes
+
+- **phpstan:** Drop redundant catch type and analyse app/ only
+
+### CI/CD
+
+- Pass release version input through env
+- Standardize dependabot config
+- Standardize tests workflow
+- Remove run-tests.yml (replaced by tests.yml)
+- Standardize tests workflow
+- Auto-merge dependabot github-actions minor/patch
+
+### Dependencies
+
+- **deps:** Bump orhun/git-cliff-action in the actions-deps group (#11)
+
+### Documentation
+
+- Point tests badge to tests.yml
+
+### Features
+
+- Add audit command for GitHub repo hygiene
+
+### Miscellaneous Tasks
+
+- Remove unused banner svg from art/ (png is what README uses)
+
 ## [1.2.6] - 2026-09-08
 
 ### Bug Fixes
