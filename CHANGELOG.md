@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.3] - 2026-10-07
+
+### Bug Fixes
+
+- **audit:** Work with GitHub Actions' GITHUB_TOKEN
+
 ## [1.3.2] - 2026-10-07
 
 ### Bug Fixes
