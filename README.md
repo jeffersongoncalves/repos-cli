@@ -165,6 +165,34 @@ repos issues acme/widgets --host=github
 repos issues acme --host=github
 ```
 
+### Audit (GitHub)
+
+Hygiene report for every repo of an owner — run it from the folder that holds your clones:
+
+```bash
+cd ~/code/acme
+repos audit acme --automerge-template=~/templates/dependabot-auto-merge.yml
+```
+
+| Check | Flags a repo when |
+|-------|-------------------|
+| `clone` | there's no clone of it under `--path` (default: current directory) |
+| `website` | its website points to packagist.org |
+| `description` | the description is empty |
+| `branch` | the default branch isn't the highest `N.x` branch (multi-branch packages) or `main` |
+| `dependabot` | `.github/dependabot.yml` is missing |
+| `automerge` | `dependabot-auto-merge.yml` differs from `--automerge-template` (skipped without it) |
+| `ci` | the latest push-triggered workflow run on the default branch failed |
+| `dependabot-prs` | an open Dependabot pull request has failing checks |
+
+```bash
+repos audit acme --only=ci,dependabot-prs   # just the red builds
+repos audit acme --skip=clone --filter=filament
+repos audit acme --json > audit.json        # pure JSON, no progress bar
+```
+
+Archived repos and forks are skipped unless you pass `--include-archived` / `--include-forks`. The command exits `1` when it finds anything, so it can gate a CI job.
+
 ### Supported hosts
 
 | Host | Auth | Notes |

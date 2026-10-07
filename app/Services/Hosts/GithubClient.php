@@ -6,6 +6,7 @@ use App\Contracts\HostClient;
 use App\DTOs\Issue;
 use App\DTOs\Repo;
 use App\Exceptions\GithubApiException;
+use GuzzleHttp\Client;
 use JeffersonGoncalves\LaravelZero\ApiClient\AbstractApiClient;
 use JeffersonGoncalves\LaravelZero\ApiClient\ApiException;
 use JeffersonGoncalves\LaravelZero\ApiClient\Auth;
@@ -14,9 +15,9 @@ class GithubClient extends AbstractApiClient implements HostClient
 {
     protected const BASE_URL = 'https://api.github.com';
 
-    public function __construct(string $token)
+    public function __construct(string $token, ?Client $client = null)
     {
-        parent::__construct(self::BASE_URL, Auth::bearer($token));
+        parent::__construct(self::BASE_URL, Auth::bearer($token), $client);
     }
 
     public function currentUsername(): string
@@ -36,7 +37,106 @@ class GithubClient extends AbstractApiClient implements HostClient
             sshUrl: $repo['ssh_url'],
             private: (bool) ($repo['private'] ?? false),
             defaultBranch: $repo['default_branch'] ?? null,
+            description: $repo['description'] ?? null,
+            homepage: $repo['homepage'] ?? null,
+            archived: (bool) ($repo['archived'] ?? false),
+            fork: (bool) ($repo['fork'] ?? false),
         ), $data);
+    }
+
+    /**
+     * @return string[]
+     */
+    public function listBranches(string $owner, string $repo): array
+    {
+        return array_map(fn (array $branch) => (string) $branch['name'], $this->pagedList("repos/{$owner}/{$repo}/branches"));
+    }
+
+    /**
+     * Raw content of a file on the default branch, or null when it doesn't exist.
+     */
+    public function fileContent(string $owner, string $repo, string $path): ?string
+    {
+        try {
+            $file = $this->get("repos/{$owner}/{$repo}/contents/{$path}");
+        } catch (ApiException $e) {
+            if ($e->statusCode === 404) {
+                return null;
+            }
+
+            throw $e;
+        }
+
+        $content = base64_decode((string) ($file['content'] ?? ''), true);
+
+        return $content === false ? null : $content;
+    }
+
+    /**
+     * Latest completed push-triggered workflow run on a branch, or null when there is none.
+     *
+     * @return array{name: string, conclusion: string, url: string}|null
+     */
+    public function latestRun(string $owner, string $repo, string $branch): ?array
+    {
+        $runs = $this->get("repos/{$owner}/{$repo}/actions/runs", [
+            'branch' => $branch,
+            'event' => 'push',
+            'status' => 'completed',
+            'per_page' => 1,
+        ])['workflow_runs'] ?? [];
+
+        if ($runs === []) {
+            return null;
+        }
+
+        return [
+            'name' => (string) ($runs[0]['name'] ?? ''),
+            'conclusion' => (string) ($runs[0]['conclusion'] ?? ''),
+            'url' => (string) ($runs[0]['html_url'] ?? ''),
+        ];
+    }
+
+    /**
+     * Open Dependabot pull requests across every repo of an owner whose checks failed.
+     *
+     * @return array<int, array{repo: string, number: int, title: string, url: string}>
+     */
+    public function failingDependabotPulls(string $ownerOrOrg, string $qualifier = 'user'): array
+    {
+        $items = $this->paginate(
+            'search/issues',
+            ['q' => "{$qualifier}:{$ownerOrOrg} is:pr is:open author:app/dependabot", 'per_page' => 100],
+            fn (array $page) => $page['items'] ?? [],
+            fn (array $page, array $query) => count($page['items'] ?? []) < 100
+                ? null
+                : ['query' => array_merge($query, ['page' => ($query['page'] ?? 1) + 1])],
+        );
+
+        $failing = [];
+
+        foreach ($items as $item) {
+            $repo = $this->repoFromIssueUrl($item['repository_url'] ?? '');
+            $sha = $this->get("repos/{$repo}/pulls/{$item['number']}")['head']['sha'] ?? null;
+
+            if ($sha === null) {
+                continue;
+            }
+
+            $checks = $this->get("repos/{$repo}/commits/{$sha}/check-runs", ['per_page' => 100])['check_runs'] ?? [];
+            $failed = array_filter($checks, fn (array $run) => in_array($run['conclusion'] ?? null, ['failure', 'timed_out'], true));
+
+            if ($failed !== []) {
+                $failing[] = [
+                    'repo' => $repo,
+                    'number' => (int) $item['number'],
+                    'title' => (string) $item['title'],
+                    'url' => (string) $item['html_url'],
+                ];
+            }
+        }
+
+        return $failing;
     }
 
     public function listOpenIssues(string $owner, string $repo): array

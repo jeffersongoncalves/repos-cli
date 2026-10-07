@@ -53,6 +53,12 @@ recurse, and does not need auth (plain `git pull`, uses your SSH key).
   GitLab/Bitbucket it loops one API call per repo (slow for large orgs).
   `--qualifier` only affects the GitHub search query (`org:X` vs `user:X`).
 
+## `audit` (GitHub only)
+
+`repos audit OWNER [--path=DIR] [--only=a,b] [--skip=a,b] [--automerge-template=FILE] [--filter=TEXT] [--include-archived] [--include-forks] [--qualifier=user|org] [--json]`
+
+Checks: `clone`, `website`, `description`, `branch`, `dependabot`, `automerge`, `ci`, `dependabot-prs`. Use `--json` when parsing the result — it prints only a JSON array of `{repo, check, message}` (no progress bar). Exits `1` when there is at least one finding, `0` when clean. `automerge` is skipped unless `--automerge-template` points to a file; `clone` checks `--path` (default: cwd).
+
 ## Exit codes
 
 `0` success, `1` failure (auth missing for the target host, host

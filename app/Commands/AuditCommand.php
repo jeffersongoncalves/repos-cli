@@ -1,0 +1,153 @@
+<?php
+
+namespace App\Commands;
+
+use App\Concerns\ResolvesHost;
+use App\DTOs\Finding;
+use App\DTOs\Repo;
+use App\Enums\GitHost;
+use App\Services\GitOperationsService;
+use App\Services\HostClientFactory;
+use App\Services\Hosts\GithubClient;
+use App\Services\RepoAuditor;
+use InvalidArgumentException;
+use JeffersonGoncalves\LaravelZero\Console\FormatsOutput;
+use JeffersonGoncalves\LaravelZero\Console\HandlesApiErrors;
+use JeffersonGoncalves\LaravelZero\Console\ResolvesPath;
+use LaravelZero\Framework\Commands\Command;
+
+class AuditCommand extends Command
+{
+    use FormatsOutput, HandlesApiErrors, ResolvesHost, ResolvesPath;
+
+    protected $signature = 'audit
+        {owner : GitHub user or org to audit}
+        {--host=github : Only github is supported}
+        {--profile=default : Named credential profile to use for the API calls}
+        {--path= : Folder that should hold a clone of every repo (default: current directory)}
+        {--only= : Comma-separated checks to run (clone,website,description,branch,dependabot,automerge,ci,dependabot-prs)}
+        {--skip= : Comma-separated checks to skip}
+        {--automerge-template= : Approved dependabot-auto-merge.yml to compare against (automerge check is skipped without it)}
+        {--filter= : Only audit repos whose name contains this text}
+        {--include-archived : Also audit archived repos}
+        {--include-forks : Also audit forks}
+        {--qualifier=user : user or org (search used by the dependabot-prs check)}
+        {--json : Print the findings as JSON}';
+
+    protected $description = 'Audit every repo of an owner: local clone, website, description, default branch, Dependabot setup, CI and failing Dependabot PRs';
+
+    public function handle(HostClientFactory $factory, GitOperationsService $git): int
+    {
+        return $this->handleApiErrors(function () use ($factory, $git) {
+            if ($this->resolveHost($this->option('host')) !== GitHost::Github) {
+                throw new InvalidArgumentException('audit only supports --host=github.');
+            }
+
+            $client = $factory->make(GitHost::Github, (string) $this->option('profile'));
+            if (! $client instanceof GithubClient) {
+                throw new InvalidArgumentException('audit needs a GitHub client.');
+            }
+
+            $checks = $this->selectedChecks();
+            $owner = (string) $this->argument('owner');
+            $repos = $this->repos($client, $owner);
+
+            $template = $this->option('automerge-template');
+            if (is_string($template) && $template !== '' && ! is_file($template)) {
+                throw new InvalidArgumentException("Template not found: {$template}");
+            }
+
+            $auditor = new RepoAuditor(
+                $client,
+                $git,
+                $checks,
+                in_array('clone', $checks, true) ? $this->resolvePath($this->option('path')) : null,
+                is_string($template) && $template !== '' ? (string) file_get_contents($template) : null,
+            );
+
+            $findings = [];
+            $auditOne = function (Repo $repo) use ($auditor, &$findings): void {
+                array_push($findings, ...$auditor->audit($repo));
+            };
+
+            if ($this->option('json')) {
+                // stdout must stay pure JSON so the output can be piped.
+                array_walk($repos, $auditOne);
+            } else {
+                $this->withProgressBar($repos, $auditOne);
+                $this->newLine(2);
+            }
+
+            if (in_array('dependabot-prs', $checks, true)) {
+                foreach ($client->failingDependabotPulls($owner, (string) $this->option('qualifier')) as $pull) {
+                    if ($this->matchesFilter($pull['repo'])) {
+                        $findings[] = new Finding($pull['repo'], 'dependabot-prs', "PR #{$pull['number']} failing: {$pull['url']}");
+                    }
+                }
+            }
+
+            $this->report($findings, count($repos));
+
+            return $findings === [] ? self::SUCCESS : self::FAILURE;
+        });
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function selectedChecks(): array
+    {
+        $all = [...RepoAuditor::CHECKS, 'dependabot-prs'];
+        $split = fn (?string $value) => array_values(array_filter(array_map('trim', explode(',', (string) $value))));
+
+        $only = $split($this->option('only'));
+        $skip = $split($this->option('skip'));
+
+        foreach ([...$only, ...$skip] as $check) {
+            if (! in_array($check, $all, true)) {
+                throw new InvalidArgumentException("Unknown check '{$check}'. Available: ".implode(', ', $all));
+            }
+        }
+
+        return array_values(array_diff($only === [] ? $all : $only, $skip));
+    }
+
+    /**
+     * @return list<Repo>
+     */
+    protected function repos(GithubClient $client, string $owner): array
+    {
+        return array_values(array_filter(
+            $client->listRepos($owner),
+            fn (Repo $repo) => ($this->option('include-archived') || ! $repo->archived)
+                && ($this->option('include-forks') || ! $repo->fork)
+                && $this->matchesFilter($repo->name),
+        ));
+    }
+
+    protected function matchesFilter(string $name): bool
+    {
+        $filter = (string) $this->option('filter');
+
+        return $filter === '' || str_contains(strtolower($name), strtolower($filter));
+    }
+
+    /**
+     * @param  list<Finding>  $findings
+     */
+    protected function report(array $findings, int $repoCount): void
+    {
+        if ($this->option('json')) {
+            $this->line((string) json_encode(array_map(fn (Finding $f) => $f->toArray(), $findings), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+            return;
+        }
+
+        usort($findings, fn (Finding $a, Finding $b) => [$a->check, $a->repo] <=> [$b->check, $b->repo]);
+        $this->renderTable(['Check', 'Repo', 'Problem'], array_map(fn (Finding $f) => [$f->check, $f->repo, $f->message], $findings));
+
+        $byCheck = array_count_values(array_map(fn (Finding $f) => $f->check, $findings));
+        $summary = $byCheck === [] ? 'no problems' : implode(', ', array_map(fn ($check, $n) => "{$check}: {$n}", array_keys($byCheck), $byCheck));
+        $this->components->info("Audited {$repoCount} repos — {$summary}.");
+    }
+}

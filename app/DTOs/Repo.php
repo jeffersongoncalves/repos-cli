@@ -10,6 +10,10 @@ final class Repo
         public readonly string $sshUrl,
         public readonly bool $private,
         public readonly ?string $defaultBranch = null,
+        public readonly ?string $description = null,
+        public readonly ?string $homepage = null,
+        public readonly bool $archived = false,
+        public readonly bool $fork = false,
     ) {}
 
     public function fullName(): string
