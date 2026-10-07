@@ -11,6 +11,7 @@ use App\Services\HostClientFactory;
 use App\Services\Hosts\GithubClient;
 use App\Services\RepoAuditor;
 use InvalidArgumentException;
+use JeffersonGoncalves\LaravelZero\ApiClient\ApiException;
 use JeffersonGoncalves\LaravelZero\Console\FormatsOutput;
 use JeffersonGoncalves\LaravelZero\Console\HandlesApiErrors;
 use JeffersonGoncalves\LaravelZero\Console\ResolvesPath;
@@ -68,7 +69,12 @@ class AuditCommand extends Command
 
             $findings = [];
             $auditOne = function (Repo $repo) use ($auditor, &$findings): void {
-                array_push($findings, ...$auditor->audit($repo));
+                try {
+                    array_push($findings, ...$auditor->audit($repo));
+                } catch (ApiException $e) {
+                    // Keep going: one unreachable repo shouldn't hide the rest of the report.
+                    $findings[] = new Finding($repo->fullName(), 'error', "Could not audit: {$e->getMessage()}");
+                }
             };
 
             if ($this->option('json')) {

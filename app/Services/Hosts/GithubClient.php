@@ -15,9 +15,35 @@ class GithubClient extends AbstractApiClient implements HostClient
 {
     protected const BASE_URL = 'https://api.github.com';
 
+    protected const MAX_ATTEMPTS = 3;
+
+    protected const RETRY_DELAY_MS = 500;
+
     public function __construct(string $token, ?Client $client = null)
     {
         parent::__construct(self::BASE_URL, Auth::bearer($token), $client);
+    }
+
+    /**
+     * Retries network errors (status 0) and 5xx a couple of times: a long audit makes hundreds of calls,
+     * and one dropped connection shouldn't fail the whole run.
+     *
+     * @param  array<string, mixed>  $options
+     * @return array<string, mixed>
+     */
+    protected function request(string $method, string $path, array $options = []): array
+    {
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                return parent::request($method, $path, $options);
+            } catch (ApiException $e) {
+                if ($attempt >= self::MAX_ATTEMPTS || ($e->statusCode !== 0 && $e->statusCode < 500)) {
+                    throw $e;
+                }
+
+                usleep(self::RETRY_DELAY_MS * 1000 * $attempt);
+            }
+        }
     }
 
     public function currentUsername(): string

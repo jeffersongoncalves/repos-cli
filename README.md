@@ -192,7 +192,7 @@ repos audit acme --exclude=legacy-app,old-site # leave known exceptions out
 repos audit acme --json > audit.json        # pure JSON, no progress bar
 ```
 
-Archived repos and forks are skipped unless you pass `--include-archived` / `--include-forks`. The command exits `1` when it finds anything, so it can gate a CI job.
+Network errors and GitHub 5xx are retried; a repo that still can't be read is reported as an `error` finding and the audit moves on. Archived repos and forks are skipped unless you pass `--include-archived` / `--include-forks`. The command exits `1` when it finds anything, so it can gate a CI job.
 
 ### Supported hosts
 

@@ -180,6 +180,36 @@ it('skips excluded repos', function () {
         ->assertExitCode(0);
 });
 
+it('retries a dropped connection or a 5xx before giving up', function () {
+    $client = githubClient([
+        json(['message' => 'Bad Gateway'], 502),
+        json(['content' => base64_encode('version: 2')]),
+    ]);
+
+    expect($client->fileContent('acme', 'lib', '.github/dependabot.yml'))->toBe('version: 2');
+});
+
+it('reports a repo it could not audit and keeps going', function () {
+    $client = githubClient([
+        json(['login' => 'acme']),
+        json([
+            ['name' => 'flaky', 'owner' => ['login' => 'acme'], 'ssh_url' => 's', 'default_branch' => 'main', 'description' => 'x'],
+            ['name' => 'fine', 'owner' => ['login' => 'acme'], 'ssh_url' => 's', 'default_branch' => 'main', 'description' => 'x'],
+        ]),
+        json(['message' => 'Forbidden'], 403),                                // flaky: dependabot.yml
+        json(['content' => base64_encode('version: 2')]),                    // fine: dependabot.yml
+    ]);
+
+    $factory = Mockery::mock(HostClientFactory::class);
+    $factory->shouldReceive('make')->andReturn($client);
+    $this->app->instance(HostClientFactory::class, $factory);
+
+    $this->artisan('audit', ['owner' => 'acme', '--only' => 'dependabot', '--json' => true])
+        ->expectsOutputToContain('"check": "error"')
+        ->doesntExpectOutputToContain('acme/fine')
+        ->assertExitCode(1);
+});
+
 it('rejects unknown checks', function () {
     $factory = Mockery::mock(HostClientFactory::class);
     $factory->shouldReceive('make')->andReturn(githubClient([]));
