@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.4] - 2026-10-07
+
+### Bug Fixes
+
+- **audit:** Retry transient GitHub errors and keep going on a failing repo
+
 ## [1.3.3] - 2026-10-07
 
 ### Bug Fixes
