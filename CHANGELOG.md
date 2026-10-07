@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1] - 2026-10-07
+
+### Features
+
+- **audit:** Add --exclude to leave known exceptions out
+
 ## [1.3.0] - 2026-10-07
 
 ### Bug Fixes
