@@ -29,6 +29,7 @@ class AuditCommand extends Command
         {--skip= : Comma-separated checks to skip}
         {--automerge-template= : Approved dependabot-auto-merge.yml to compare against (automerge check is skipped without it)}
         {--filter= : Only audit repos whose name contains this text}
+        {--exclude= : Comma-separated repo names to skip (exact name, case-insensitive)}
         {--include-archived : Also audit archived repos}
         {--include-forks : Also audit forks}
         {--qualifier=user : user or org (search used by the dependabot-prs check)}
@@ -125,11 +126,16 @@ class AuditCommand extends Command
         ));
     }
 
+    /**
+     * Name filter + exclusion list. Accepts a bare name or an owner/name (Dependabot PR findings).
+     */
     protected function matchesFilter(string $name): bool
     {
-        $filter = (string) $this->option('filter');
+        $name = strtolower(str_contains($name, '/') ? substr($name, strrpos($name, '/') + 1) : $name);
+        $filter = strtolower((string) $this->option('filter'));
+        $excluded = array_map('strtolower', array_filter(array_map('trim', explode(',', (string) $this->option('exclude')))));
 
-        return $filter === '' || str_contains(strtolower($name), strtolower($filter));
+        return ($filter === '' || str_contains($name, $filter)) && ! in_array($name, $excluded, true);
     }
 
     /**

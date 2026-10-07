@@ -134,6 +134,24 @@ it('audits an owner from the command and fails when there are findings', functio
         ->assertExitCode(1);
 });
 
+it('skips excluded repos', function () {
+    $client = githubClient([
+        json(['login' => 'acme']),                                            // currentUsername == owner
+        json([                                                                // user/repos
+            ['name' => 'legacy', 'owner' => ['login' => 'acme'], 'ssh_url' => 's', 'default_branch' => 'main', 'description' => ''],
+            ['name' => 'Other', 'owner' => ['login' => 'acme'], 'ssh_url' => 's', 'default_branch' => 'main', 'description' => ''],
+        ]),
+    ]);
+
+    $factory = Mockery::mock(HostClientFactory::class);
+    $factory->shouldReceive('make')->andReturn($client);
+    $this->app->instance(HostClientFactory::class, $factory);
+
+    $this->artisan('audit', ['owner' => 'acme', '--only' => 'description', '--exclude' => 'LEGACY, other', '--json' => true])
+        ->expectsOutputToContain('[]')
+        ->assertExitCode(0);
+});
+
 it('rejects unknown checks', function () {
     $factory = Mockery::mock(HostClientFactory::class);
     $factory->shouldReceive('make')->andReturn(githubClient([]));

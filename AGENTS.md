@@ -55,7 +55,7 @@ recurse, and does not need auth (plain `git pull`, uses your SSH key).
 
 ## `audit` (GitHub only)
 
-`repos audit OWNER [--path=DIR] [--only=a,b] [--skip=a,b] [--automerge-template=FILE] [--filter=TEXT] [--include-archived] [--include-forks] [--qualifier=user|org] [--json]`
+`repos audit OWNER [--path=DIR] [--only=a,b] [--skip=a,b] [--automerge-template=FILE] [--filter=TEXT] [--exclude=name1,name2] [--include-archived] [--include-forks] [--qualifier=user|org] [--json]`
 
 Checks: `clone`, `website`, `description`, `branch`, `dependabot`, `automerge`, `ci`, `dependabot-prs`. Use `--json` when parsing the result — it prints only a JSON array of `{repo, check, message}` (no progress bar). Exits `1` when there is at least one finding, `0` when clean. `automerge` is skipped unless `--automerge-template` points to a file; `clone` checks `--path` (default: cwd).
 
