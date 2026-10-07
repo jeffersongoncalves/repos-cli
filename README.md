@@ -182,7 +182,7 @@ repos audit acme --automerge-template=~/templates/dependabot-auto-merge.yml
 | `branch` | the default branch isn't the highest `N.x` branch (multi-branch packages) or `main` |
 | `dependabot` | `.github/dependabot.yml` is missing |
 | `automerge` | `dependabot-auto-merge.yml` differs from `--automerge-template` (skipped without it) |
-| `ci` | the latest push-triggered workflow run on the default branch failed |
+| `ci` | a push-triggered workflow run of the default branch's HEAD commit failed |
 | `dependabot-prs` | an open Dependabot pull request has failing checks |
 
 ```bash

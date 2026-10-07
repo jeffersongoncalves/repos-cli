@@ -73,28 +73,34 @@ class GithubClient extends AbstractApiClient implements HostClient
     }
 
     /**
-     * Latest completed push-triggered workflow run on a branch, or null when there is none.
+     * Failed push-triggered workflow runs of the branch's current HEAD commit.
      *
-     * @return array{name: string, conclusion: string, url: string}|null
+     * Scoped to one commit on purpose: the runs list endpoint doesn't reliably return the newest run first
+     * when filtered by status, so "latest run on the branch" can surface a months-old failure that was
+     * already fixed. A HEAD commit without CI runs (e.g. a docs-only commit skipped by `paths:`) reports nothing.
+     *
+     * @return list<array{name: string, url: string}>
      */
-    public function latestRun(string $owner, string $repo, string $branch): ?array
+    public function failedHeadRuns(string $owner, string $repo, string $branch): array
     {
-        $runs = $this->get("repos/{$owner}/{$repo}/actions/runs", [
-            'branch' => $branch,
-            'event' => 'push',
-            'status' => 'completed',
-            'per_page' => 1,
-        ])['workflow_runs'] ?? [];
+        $sha = $this->get("repos/{$owner}/{$repo}/commits/{$branch}")['sha'] ?? null;
 
-        if ($runs === []) {
-            return null;
+        if (! is_string($sha)) {
+            return [];
         }
 
-        return [
-            'name' => (string) ($runs[0]['name'] ?? ''),
-            'conclusion' => (string) ($runs[0]['conclusion'] ?? ''),
-            'url' => (string) ($runs[0]['html_url'] ?? ''),
-        ];
+        $runs = $this->get("repos/{$owner}/{$repo}/actions/runs", [
+            'head_sha' => $sha,
+            'event' => 'push',
+            'per_page' => 100,
+        ])['workflow_runs'] ?? [];
+
+        $failed = array_filter($runs, fn (array $run) => in_array($run['conclusion'] ?? null, ['failure', 'timed_out'], true));
+
+        return array_values(array_map(fn (array $run) => [
+            'name' => (string) ($run['name'] ?? ''),
+            'url' => (string) ($run['html_url'] ?? ''),
+        ], $failed));
     }
 
     /**

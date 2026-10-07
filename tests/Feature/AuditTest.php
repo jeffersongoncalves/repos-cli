@@ -55,6 +55,7 @@ it('reports nothing for a healthy repo', function () {
         json([['name' => '1.x'], ['name' => '2.x'], ['name' => '3.x']]),      // branches
         json(['content' => base64_encode('version: 2')]),                    // dependabot.yml
         json(['content' => base64_encode("name: automerge\n")]),              // dependabot-auto-merge.yml
+        json(['sha' => 'head123']),                                            // HEAD of 3.x
         json(['workflow_runs' => [['name' => 'Tests', 'conclusion' => 'success', 'html_url' => 'u']]]),
     ]);
 
@@ -68,7 +69,11 @@ it('reports every problem of a neglected repo', function () {
         json([['name' => 'main'], ['name' => '1.x'], ['name' => '2.x']]),    // branches -> expects 2.x
         json(['message' => 'Not Found'], 404),                                // no dependabot.yml
         json(['content' => base64_encode('merges: everything')]),             // custom automerge
-        json(['workflow_runs' => [['name' => 'Tests', 'conclusion' => 'failure', 'html_url' => 'https://ci/run/1']]]),
+        json(['sha' => 'head456']),                                            // HEAD of main
+        json(['workflow_runs' => [
+            ['name' => 'Tests', 'conclusion' => 'failure', 'html_url' => 'https://ci/run/1'],
+            ['name' => 'PHPStan', 'conclusion' => 'success', 'html_url' => 'https://ci/run/2'],
+        ]]),
     ]);
 
     $auditor = new RepoAuditor($client, gitWith(false), RepoAuditor::CHECKS, '/code', 'name: automerge');
@@ -82,6 +87,18 @@ it('reports every problem of a neglected repo', function () {
         ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci'])
         ->and($findings[3]->message)->toBe('Default branch is main, expected 2.x')
         ->and($findings[6]->message)->toContain('https://ci/run/1');
+});
+
+it('checks CI on the HEAD commit only, so an old fixed failure is not reported', function () {
+    $history = [];
+    $client = githubClient([
+        json(['sha' => 'abc']),
+        json(['workflow_runs' => [['name' => 'Tests', 'conclusion' => 'success', 'html_url' => 'u']]]),
+    ], $history);
+
+    expect((new RepoAuditor($client, gitWith(true), ['ci']))->audit(repo()))->toBe([])
+        ->and((string) $history[0]['request']->getUri())->toContain('commits/3.x')
+        ->and((string) $history[1]['request']->getUri())->toContain('head_sha=abc');
 });
 
 it('only calls the API for the selected checks', function () {

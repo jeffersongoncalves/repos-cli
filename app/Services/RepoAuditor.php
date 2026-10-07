@@ -67,9 +67,8 @@ class RepoAuditor
         }
 
         if ($this->runs('ci') && $repo->defaultBranch !== null) {
-            $run = $this->client->latestRun($repo->owner, $repo->name, $repo->defaultBranch);
-            if ($run !== null && in_array($run['conclusion'], ['failure', 'timed_out'], true)) {
-                $add('ci', "Last {$run['name']} run on {$repo->defaultBranch} failed: {$run['url']}");
+            foreach ($this->client->failedHeadRuns($repo->owner, $repo->name, $repo->defaultBranch) as $run) {
+                $add('ci', "{$run['name']} failed on the {$repo->defaultBranch} HEAD commit: {$run['url']}");
             }
         }
 
