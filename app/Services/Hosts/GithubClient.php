@@ -27,7 +27,15 @@ class GithubClient extends AbstractApiClient implements HostClient
 
     public function listRepos(string $ownerOrOrg): array
     {
-        $data = strcasecmp($this->currentUsername(), $ownerOrOrg) === 0
+        try {
+            $login = $this->currentUsername();
+        } catch (ApiException) {
+            // Tokens without user scope (e.g. GitHub Actions' GITHUB_TOKEN) can't call /user:
+            // fall back to the owner's public listing instead of failing.
+            $login = '';
+        }
+
+        $data = strcasecmp($login, $ownerOrOrg) === 0
             ? $this->pagedList('user/repos', ['affiliation' => 'owner'])
             : $this->reposForOwner($ownerOrOrg);
 
@@ -75,27 +83,28 @@ class GithubClient extends AbstractApiClient implements HostClient
     /**
      * Failed push-triggered workflow runs of the branch's current HEAD commit.
      *
-     * Scoped to one commit on purpose: the runs list endpoint doesn't reliably return the newest run first
-     * when filtered by status, so "latest run on the branch" can surface a months-old failure that was
-     * already fixed. A HEAD commit without CI runs (e.g. a docs-only commit skipped by `paths:`) reports nothing.
+     * Scoped to the newest commit that has push runs. The list is requested WITHOUT a `status` filter on
+     * purpose: filtered by status, GitHub doesn't reliably return the newest run first, so the check could
+     * surface a months-old failure that was already fixed. One call per repo (fits GITHUB_TOKEN's rate limit).
      *
      * @return list<array{name: string, url: string}>
      */
     public function failedHeadRuns(string $owner, string $repo, string $branch): array
     {
-        $sha = $this->get("repos/{$owner}/{$repo}/commits/{$branch}")['sha'] ?? null;
+        $runs = $this->get("repos/{$owner}/{$repo}/actions/runs", [
+            'branch' => $branch,
+            'event' => 'push',
+            'per_page' => 30,
+        ])['workflow_runs'] ?? [];
+
+        $sha = $runs[0]['head_sha'] ?? null;
 
         if (! is_string($sha)) {
             return [];
         }
 
-        $runs = $this->get("repos/{$owner}/{$repo}/actions/runs", [
-            'head_sha' => $sha,
-            'event' => 'push',
-            'per_page' => 100,
-        ])['workflow_runs'] ?? [];
-
-        $failed = array_filter($runs, fn (array $run) => in_array($run['conclusion'] ?? null, ['failure', 'timed_out'], true));
+        $failed = array_filter($runs, fn (array $run) => ($run['head_sha'] ?? null) === $sha
+            && in_array($run['conclusion'] ?? null, ['failure', 'timed_out'], true));
 
         return array_values(array_map(fn (array $run) => [
             'name' => (string) ($run['name'] ?? ''),

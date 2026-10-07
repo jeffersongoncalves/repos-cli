@@ -55,8 +55,7 @@ it('reports nothing for a healthy repo', function () {
         json([['name' => '1.x'], ['name' => '2.x'], ['name' => '3.x']]),      // branches
         json(['content' => base64_encode('version: 2')]),                    // dependabot.yml
         json(['content' => base64_encode("name: automerge\n")]),              // dependabot-auto-merge.yml
-        json(['sha' => 'head123']),                                            // HEAD of 3.x
-        json(['workflow_runs' => [['name' => 'Tests', 'conclusion' => 'success', 'html_url' => 'u']]]),
+        json(['workflow_runs' => [['name' => 'Tests', 'head_sha' => 'h1', 'conclusion' => 'success', 'html_url' => 'u']]]),
     ]);
 
     $auditor = new RepoAuditor($client, gitWith(true), RepoAuditor::CHECKS, '/code', "name: automerge\r\n");
@@ -69,10 +68,9 @@ it('reports every problem of a neglected repo', function () {
         json([['name' => 'main'], ['name' => '1.x'], ['name' => '2.x']]),    // branches -> expects 2.x
         json(['message' => 'Not Found'], 404),                                // no dependabot.yml
         json(['content' => base64_encode('merges: everything')]),             // custom automerge
-        json(['sha' => 'head456']),                                            // HEAD of main
         json(['workflow_runs' => [
-            ['name' => 'Tests', 'conclusion' => 'failure', 'html_url' => 'https://ci/run/1'],
-            ['name' => 'PHPStan', 'conclusion' => 'success', 'html_url' => 'https://ci/run/2'],
+            ['name' => 'Tests', 'head_sha' => 'h2', 'conclusion' => 'failure', 'html_url' => 'https://ci/run/1'],
+            ['name' => 'PHPStan', 'head_sha' => 'h2', 'conclusion' => 'success', 'html_url' => 'https://ci/run/2'],
         ]]),
     ]);
 
@@ -89,16 +87,29 @@ it('reports every problem of a neglected repo', function () {
         ->and($findings[6]->message)->toContain('https://ci/run/1');
 });
 
-it('checks CI on the HEAD commit only, so an old fixed failure is not reported', function () {
+it('checks CI on the newest commit only, so an old fixed failure is not reported', function () {
     $history = [];
     $client = githubClient([
-        json(['sha' => 'abc']),
-        json(['workflow_runs' => [['name' => 'Tests', 'conclusion' => 'success', 'html_url' => 'u']]]),
+        json(['workflow_runs' => [
+            ['name' => 'Tests', 'head_sha' => 'new', 'conclusion' => 'success', 'html_url' => 'u1'],
+            ['name' => 'Tests', 'head_sha' => 'old', 'conclusion' => 'failure', 'html_url' => 'u2'],
+        ]]),
     ], $history);
 
     expect((new RepoAuditor($client, gitWith(true), ['ci']))->audit(repo()))->toBe([])
-        ->and((string) $history[0]['request']->getUri())->toContain('commits/3.x')
-        ->and((string) $history[1]['request']->getUri())->toContain('head_sha=abc');
+        ->and($history)->toHaveCount(1)
+        ->and((string) $history[0]['request']->getUri())->toContain('branch=3.x')
+        ->and((string) $history[0]['request']->getUri())->not->toContain('status=');
+});
+
+it('falls back to the public listing when the token cannot read /user', function () {
+    $client = githubClient([
+        json(['message' => 'Resource not accessible by integration'], 403),   // GET user (GITHUB_TOKEN)
+        json(['message' => 'Not Found'], 404),                                // orgs/acme/repos
+        json([['name' => 'pub', 'owner' => ['login' => 'acme'], 'ssh_url' => 's']]),
+    ]);
+
+    expect(array_map(fn ($r) => $r->name, $client->listRepos('acme')))->toBe(['pub']);
 });
 
 it('only calls the API for the selected checks', function () {
