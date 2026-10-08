@@ -184,13 +184,17 @@ repos audit acme --automerge-template=~/templates/dependabot-auto-merge.yml
 | `automerge` | `dependabot-auto-merge.yml` differs from `--automerge-template` (skipped without it) |
 | `ci` | a push-triggered workflow run of the default branch's HEAD commit failed |
 | `dependabot-prs` | an open Dependabot pull request has failing checks |
+| `catalog` | an entry of `--catalog` (a `plugins.json`) has no GitHub repo, an archived one, or no Packagist package; or the owner publishes a Packagist package the catalog doesn't list (skipped without it) |
 
 ```bash
 repos audit acme --only=ci,dependabot-prs   # just the red builds
+repos audit acme --only=catalog --catalog=plugins.json
 repos audit acme --skip=clone --filter=filament
 repos audit acme --exclude=legacy-app,old-site # leave known exceptions out
 repos audit acme --json > audit.json        # pure JSON, no progress bar
 ```
+
+The catalog is a JSON object of categories; every nested object with a `title` and a `package` (`vendor/name`) is an entry, and an optional `repo` gives the GitHub path when it differs from `package`. Entries under `startkit`, `filament`, `laravel`, `laravelZero`, `cli` and `cakephp` must be on Packagist.
 
 Network errors and GitHub 5xx are retried; a repo that still can't be read is reported as an `error` finding and the audit moves on. Archived repos and forks are skipped unless you pass `--include-archived` / `--include-forks`. The command exits `1` when it finds anything, so it can gate a CI job.
 

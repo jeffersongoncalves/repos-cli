@@ -6,6 +6,7 @@ use App\Concerns\ResolvesHost;
 use App\DTOs\Finding;
 use App\DTOs\Repo;
 use App\Enums\GitHost;
+use App\Services\CatalogAuditor;
 use App\Services\GitOperationsService;
 use App\Services\HostClientFactory;
 use App\Services\Hosts\GithubClient;
@@ -26,9 +27,10 @@ class AuditCommand extends Command
         {--host=github : Only github is supported}
         {--profile=default : Named credential profile to use for the API calls}
         {--path= : Folder that should hold a clone of every repo (default: current directory)}
-        {--only= : Comma-separated checks to run (clone,website,description,branch,dependabot,automerge,ci,dependabot-prs)}
+        {--only= : Comma-separated checks to run (clone,website,description,branch,dependabot,automerge,ci,dependabot-prs,catalog)}
         {--skip= : Comma-separated checks to skip}
         {--automerge-template= : Approved dependabot-auto-merge.yml to compare against (automerge check is skipped without it)}
+        {--catalog= : Product catalog (plugins.json) to cross-check against GitHub and Packagist (catalog check is skipped without it)}
         {--filter= : Only audit repos whose name contains this text}
         {--exclude= : Comma-separated repo names to skip (exact name, case-insensitive)}
         {--include-archived : Also audit archived repos}
@@ -36,11 +38,11 @@ class AuditCommand extends Command
         {--qualifier=user : user or org (search used by the dependabot-prs check)}
         {--json : Print the findings as JSON}';
 
-    protected $description = 'Audit every repo of an owner: local clone, website, description, default branch, Dependabot setup, CI and failing Dependabot PRs';
+    protected $description = 'Audit every repo of an owner: local clone, website, description, default branch, Dependabot setup, CI, failing Dependabot PRs and the product catalog';
 
-    public function handle(HostClientFactory $factory, GitOperationsService $git): int
+    public function handle(HostClientFactory $factory, GitOperationsService $git, CatalogAuditor $catalogAuditor): int
     {
-        return $this->handleApiErrors(function () use ($factory, $git) {
+        return $this->handleApiErrors(function () use ($factory, $git, $catalogAuditor) {
             if ($this->resolveHost($this->option('host')) !== GitHost::Github) {
                 throw new InvalidArgumentException('audit only supports --host=github.');
             }
@@ -52,11 +54,17 @@ class AuditCommand extends Command
 
             $checks = $this->selectedChecks();
             $owner = (string) $this->argument('owner');
-            $repos = $this->repos($client, $owner);
+            $allRepos = $client->listRepos($owner);
+            $repos = $this->repos($allRepos);
 
             $template = $this->option('automerge-template');
             if (is_string($template) && $template !== '' && ! is_file($template)) {
                 throw new InvalidArgumentException("Template not found: {$template}");
+            }
+
+            $catalog = $this->option('catalog');
+            if (is_string($catalog) && $catalog !== '' && ! is_file($catalog)) {
+                throw new InvalidArgumentException("Catalog not found: {$catalog}");
             }
 
             $auditor = new RepoAuditor(
@@ -93,6 +101,19 @@ class AuditCommand extends Command
                 }
             }
 
+            if (in_array('catalog', $checks, true) && is_string($catalog) && $catalog !== '') {
+                $entries = json_decode((string) file_get_contents($catalog), true);
+                if (! is_array($entries)) {
+                    throw new InvalidArgumentException("Catalog is not valid JSON: {$catalog}");
+                }
+
+                foreach ($catalogAuditor->audit($entries, $allRepos, $owner) as $finding) {
+                    if ($this->matchesFilter($finding->repo)) {
+                        $findings[] = $finding;
+                    }
+                }
+            }
+
             $this->report($findings, count($repos));
 
             return $findings === [] ? self::SUCCESS : self::FAILURE;
@@ -104,7 +125,7 @@ class AuditCommand extends Command
      */
     protected function selectedChecks(): array
     {
-        $all = [...RepoAuditor::CHECKS, 'dependabot-prs'];
+        $all = [...RepoAuditor::CHECKS, 'dependabot-prs', 'catalog'];
         $split = fn (?string $value) => array_values(array_filter(array_map('trim', explode(',', (string) $value))));
 
         $only = $split($this->option('only'));
@@ -120,12 +141,13 @@ class AuditCommand extends Command
     }
 
     /**
+     * @param  list<Repo>  $all
      * @return list<Repo>
      */
-    protected function repos(GithubClient $client, string $owner): array
+    protected function repos(array $all): array
     {
         return array_values(array_filter(
-            $client->listRepos($owner),
+            $all,
             fn (Repo $repo) => ($this->option('include-archived') || ! $repo->archived)
                 && ($this->option('include-forks') || ! $repo->fork)
                 && $this->matchesFilter($repo->name),
