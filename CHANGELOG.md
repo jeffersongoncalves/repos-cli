@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-10-08
+
+### Features
+
+- **audit:** Immutable and social checks
+
 ## [1.4.2] - 2026-10-08
 
 ### Features
