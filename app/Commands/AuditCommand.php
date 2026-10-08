@@ -31,6 +31,7 @@ class AuditCommand extends Command
         {--skip= : Comma-separated checks to skip}
         {--automerge-template= : Approved dependabot-auto-merge.yml to compare against (automerge check is skipped without it)}
         {--catalog= : Product catalog (plugins.json) to cross-check against GitHub and Packagist (catalog check is skipped without it)}
+        {--catalog-ignore= : Comma-separated vendor/package names the catalog check leaves out (e.g. an app published on Packagist)}
         {--filter= : Only audit repos whose name contains this text}
         {--exclude= : Comma-separated repo names to skip (exact name, case-insensitive)}
         {--include-archived : Also audit archived repos}
@@ -107,8 +108,9 @@ class AuditCommand extends Command
                     throw new InvalidArgumentException("Catalog is not valid JSON: {$catalog}");
                 }
 
+                $ignored = array_map('strtolower', array_filter(array_map('trim', explode(',', (string) $this->option('catalog-ignore')))));
                 foreach ($catalogAuditor->audit($entries, $allRepos, $owner) as $finding) {
-                    if ($this->matchesFilter($finding->repo)) {
+                    if ($this->matchesFilter($finding->repo) && ! in_array(strtolower($finding->repo), $ignored, true)) {
                         $findings[] = $finding;
                     }
                 }

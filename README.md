@@ -188,7 +188,7 @@ repos audit acme --automerge-template=~/templates/dependabot-auto-merge.yml
 
 ```bash
 repos audit acme --only=ci,dependabot-prs   # just the red builds
-repos audit acme --only=catalog --catalog=plugins.json
+repos audit acme --only=catalog --catalog=plugins.json --catalog-ignore=acme/website
 repos audit acme --skip=clone --filter=filament
 repos audit acme --exclude=legacy-app,old-site # leave known exceptions out
 repos audit acme --json > audit.json        # pure JSON, no progress bar
