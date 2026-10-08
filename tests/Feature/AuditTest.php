@@ -56,6 +56,7 @@ it('reports nothing for a healthy repo', function () {
         json(['content' => base64_encode('version: 2')]),                    // dependabot.yml
         json(['content' => base64_encode("name: automerge\n")]),              // dependabot-auto-merge.yml
         json(['workflow_runs' => [['name' => 'Tests', 'head_sha' => 'h1', 'conclusion' => 'success', 'html_url' => 'u']]]),
+        json(['enabled' => true, 'enforced_by_owner' => false]),             // immutable-releases
     ]);
 
     $auditor = new RepoAuditor($client, gitWith(true), RepoAuditor::CHECKS, '/code', "name: automerge\r\n");
@@ -72,6 +73,7 @@ it('reports every problem of a neglected repo', function () {
             ['name' => 'Tests', 'head_sha' => 'h2', 'conclusion' => 'failure', 'html_url' => 'https://ci/run/1'],
             ['name' => 'PHPStan', 'head_sha' => 'h2', 'conclusion' => 'success', 'html_url' => 'https://ci/run/2'],
         ]]),
+        json(['enabled' => false, 'enforced_by_owner' => false]),            // immutable releases off
     ]);
 
     $auditor = new RepoAuditor($client, gitWith(false), RepoAuditor::CHECKS, '/code', 'name: automerge');
@@ -82,7 +84,7 @@ it('reports every problem of a neglected repo', function () {
     ]));
 
     expect(array_map(fn ($f) => $f->check, $findings))
-        ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci'])
+        ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable'])
         ->and($findings[3]->message)->toBe('Default branch is main, expected 2.x')
         ->and($findings[6]->message)->toContain('https://ci/run/1');
 });
@@ -208,6 +210,36 @@ it('reports a repo it could not audit and keeps going', function () {
         ->expectsOutputToContain('"check": "error"')
         ->doesntExpectOutputToContain('acme/fine')
         ->assertExitCode(1);
+});
+
+it('treats an unreadable immutability setting as unknown, not as a finding', function () {
+    $client = githubClient([json(['message' => 'Resource not accessible by integration'], 403)]);
+
+    expect((new RepoAuditor($client, gitWith(true), ['immutable']))->audit(repo()))->toBe([]);
+});
+
+it('lists public repos without a custom social preview across GraphQL pages', function () {
+    $history = [];
+    $client = githubClient([
+        json(['data' => ['repositoryOwner' => ['repositories' => [
+            'pageInfo' => ['hasNextPage' => true, 'endCursor' => 'c1'],
+            'nodes' => [
+                ['name' => 'styled', 'isArchived' => false, 'usesCustomOpenGraphImage' => true],
+                ['name' => 'plain', 'isArchived' => false, 'usesCustomOpenGraphImage' => false],
+            ],
+        ]]]]),
+        json(['data' => ['repositoryOwner' => ['repositories' => [
+            'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+            'nodes' => [
+                ['name' => 'retired', 'isArchived' => true, 'usesCustomOpenGraphImage' => false],
+                ['name' => 'bare', 'isArchived' => false, 'usesCustomOpenGraphImage' => false],
+            ],
+        ]]]]),
+    ], $history);
+
+    expect($client->reposWithoutSocialPreview('acme'))->toBe(['plain', 'bare'])
+        ->and($history)->toHaveCount(2)
+        ->and(json_decode((string) $history[1]['request']->getBody(), true)['variables']['cursor'])->toBe('c1');
 });
 
 it('rejects unknown checks', function () {

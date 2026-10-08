@@ -11,7 +11,7 @@ use App\Services\Hosts\GithubClient;
  */
 class RepoAuditor
 {
-    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci'];
+    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable'];
 
     /**
      * @param  list<string>  $checks  subset of self::CHECKS to run
@@ -70,6 +70,10 @@ class RepoAuditor
             foreach ($this->client->failedHeadRuns($repo->owner, $repo->name, $repo->defaultBranch) as $run) {
                 $add('ci', "{$run['name']} failed on the {$repo->defaultBranch} HEAD commit: {$run['url']}");
             }
+        }
+
+        if ($this->runs('immutable') && ! $repo->archived && $this->client->immutableReleasesEnabled($repo->owner, $repo->name) === false) {
+            $add('immutable', 'Release immutability is disabled');
         }
 
         return $findings;

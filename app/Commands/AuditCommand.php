@@ -27,7 +27,7 @@ class AuditCommand extends Command
         {--host=github : Only github is supported}
         {--profile=default : Named credential profile to use for the API calls}
         {--path= : Folder that should hold a clone of every repo (default: current directory)}
-        {--only= : Comma-separated checks to run (clone,website,description,branch,dependabot,automerge,ci,dependabot-prs,catalog)}
+        {--only= : Comma-separated checks to run (clone,website,description,branch,dependabot,automerge,ci,immutable,dependabot-prs,social,catalog)}
         {--skip= : Comma-separated checks to skip}
         {--automerge-template= : Approved dependabot-auto-merge.yml to compare against (automerge check is skipped without it)}
         {--catalog= : Product catalog (plugins.json) to cross-check against GitHub and Packagist (catalog check is skipped without it)}
@@ -39,7 +39,7 @@ class AuditCommand extends Command
         {--qualifier=user : user or org (search used by the dependabot-prs check)}
         {--json : Print the findings as JSON}';
 
-    protected $description = 'Audit every repo of an owner: local clone, website, description, default branch, Dependabot setup, CI, failing Dependabot PRs and the product catalog';
+    protected $description = 'Audit every repo of an owner: local clone, website, description, default branch, Dependabot setup, CI, release immutability, failing Dependabot PRs, social preview and the product catalog';
 
     public function handle(HostClientFactory $factory, GitOperationsService $git, CatalogAuditor $catalogAuditor): int
     {
@@ -102,6 +102,14 @@ class AuditCommand extends Command
                 }
             }
 
+            if (in_array('social', $checks, true)) {
+                foreach ($client->reposWithoutSocialPreview($owner) as $name) {
+                    if ($this->matchesFilter($name)) {
+                        $findings[] = new Finding("{$owner}/{$name}", 'social', 'Public repo without a custom social preview image');
+                    }
+                }
+            }
+
             if (in_array('catalog', $checks, true) && is_string($catalog) && $catalog !== '') {
                 $entries = json_decode((string) file_get_contents($catalog), true);
                 if (! is_array($entries)) {
@@ -127,7 +135,7 @@ class AuditCommand extends Command
      */
     protected function selectedChecks(): array
     {
-        $all = [...RepoAuditor::CHECKS, 'dependabot-prs', 'catalog'];
+        $all = [...RepoAuditor::CHECKS, 'dependabot-prs', 'social', 'catalog'];
         $split = fn (?string $value) => array_values(array_filter(array_map('trim', explode(',', (string) $value))));
 
         $only = $split($this->option('only'));

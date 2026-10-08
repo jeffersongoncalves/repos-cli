@@ -107,6 +107,53 @@ class GithubClient extends AbstractApiClient implements HostClient
     }
 
     /**
+     * Whether "release immutability" is on. Null when the token can't read the setting (403/404), so a
+     * token without admin access doesn't turn every repo into a finding.
+     */
+    public function immutableReleasesEnabled(string $owner, string $repo): ?bool
+    {
+        try {
+            return (bool) ($this->get("repos/{$owner}/{$repo}/immutable-releases")['enabled'] ?? false);
+        } catch (ApiException $e) {
+            if (in_array($e->statusCode, [403, 404], true)) {
+                return null;
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Public, non-archived, non-fork repos of an owner that still show GitHub's generated social preview.
+     * The REST repo payload doesn't carry this flag, so it comes from GraphQL (100 repos per call).
+     *
+     * @return list<string> repo names
+     */
+    public function reposWithoutSocialPreview(string $owner): array
+    {
+        $query = 'query($owner: String!, $cursor: String) { repositoryOwner(login: $owner) { repositories(first: 100, after: $cursor, ownerAffiliations: OWNER, privacy: PUBLIC, isFork: false) { pageInfo { hasNextPage endCursor } nodes { name isArchived usesCustomOpenGraphImage } } } }';
+        $names = [];
+        $cursor = null;
+
+        do {
+            $page = $this->post('graphql', ['query' => $query, 'variables' => ['owner' => $owner, 'cursor' => $cursor]])['data']['repositoryOwner']['repositories'] ?? null;
+            if (! is_array($page)) {
+                break;
+            }
+
+            foreach ($page['nodes'] ?? [] as $repo) {
+                if (! ($repo['isArchived'] ?? false) && ! ($repo['usesCustomOpenGraphImage'] ?? true)) {
+                    $names[] = (string) $repo['name'];
+                }
+            }
+
+            $cursor = ($page['pageInfo']['hasNextPage'] ?? false) ? ($page['pageInfo']['endCursor'] ?? null) : null;
+        } while ($cursor !== null);
+
+        return $names;
+    }
+
+    /**
      * Failed push-triggered workflow runs of the branch's current HEAD commit.
      *
      * Scoped to the newest commit that has push runs. The list is requested WITHOUT a `status` filter on
