@@ -72,7 +72,9 @@ class CatalogAuditor
         }
 
         foreach ($this->published(strtolower($owner)) as $package) {
-            if (! isset($catalogued[$package])) {
+            // An archived repo is a package retired on purpose: it doesn't belong in the catalog.
+            $retired = isset($byName[$name = explode('/', $package, 2)[1] ?? '']) && $byName[$name]->archived;
+            if (! isset($catalogued[$package]) && ! $retired) {
                 $findings[] = new Finding($package, 'catalog', 'Published on Packagist but missing from the catalog');
             }
         }

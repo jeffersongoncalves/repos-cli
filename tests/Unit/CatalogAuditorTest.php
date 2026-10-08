@@ -23,7 +23,7 @@ it('flattens nested categories and keeps the repo override', function () {
 
 it('reports missing or archived repos, unpublished packages and uncatalogued packages', function () {
     $packagist = fn (string $vendor) => [
-        'acme' => ['acme/filament-ok', 'acme/filament-archived', 'acme/forgotten'],
+        'acme' => ['acme/filament-ok', 'acme/filament-archived', 'acme/forgotten', 'acme/retired'],
         'other' => [],
     ][$vendor];
 
@@ -37,7 +37,7 @@ it('reports missing or archived repos, unpublished packages and uncatalogued pac
         'vscode' => [['title' => 'Ext', 'package' => 'acme/ext-vscode']],
     ];
 
-    $repos = [catalogRepo('filament-ok'), catalogRepo('filament-archived', archived: true), catalogRepo('cake'), catalogRepo('ext-vscode')];
+    $repos = [catalogRepo('filament-ok'), catalogRepo('filament-archived', archived: true), catalogRepo('cake'), catalogRepo('ext-vscode'), catalogRepo('retired', archived: true)];
 
     $findings = array_map(fn (Finding $f) => [$f->repo, $f->message], (new CatalogAuditor($packagist))->audit($catalog, $repos, 'acme'));
 

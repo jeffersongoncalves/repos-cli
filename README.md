@@ -184,7 +184,7 @@ repos audit acme --automerge-template=~/templates/dependabot-auto-merge.yml
 | `automerge` | `dependabot-auto-merge.yml` differs from `--automerge-template` (skipped without it) |
 | `ci` | a push-triggered workflow run of the default branch's HEAD commit failed |
 | `dependabot-prs` | an open Dependabot pull request has failing checks |
-| `catalog` | an entry of `--catalog` (a `plugins.json`) has no GitHub repo, an archived one, or no Packagist package; or the owner publishes a Packagist package the catalog doesn't list (skipped without it) |
+| `catalog` | an entry of `--catalog` (a `plugins.json`) has no GitHub repo, an archived one, or no Packagist package; or the owner publishes a Packagist package the catalog doesn't list and whose repo isn't archived (skipped without it) |
 
 ```bash
 repos audit acme --only=ci,dependabot-prs   # just the red builds
