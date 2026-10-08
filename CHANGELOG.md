@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-10-08
+
+### Features
+
+- **audit:** Catalog check against GitHub and Packagist
+
 ## [1.3.4] - 2026-10-07
 
 ### Bug Fixes
