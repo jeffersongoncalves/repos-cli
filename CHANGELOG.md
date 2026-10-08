@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.2] - 2026-10-08
+
+### Features
+
+- **audit:** --catalog-ignore for packages the catalog leaves out on purpose
+
 ## [1.4.1] - 2026-10-08
 
 ### Bug Fixes
