@@ -57,6 +57,8 @@ it('reports nothing for a healthy repo', function () {
         json(['content' => base64_encode("name: automerge\n")]),              // dependabot-auto-merge.yml
         json(['workflow_runs' => [['name' => 'Tests', 'head_sha' => 'h1', 'conclusion' => 'success', 'html_url' => 'u']]]),
         json(['enabled' => true, 'enforced_by_owner' => false]),             // immutable-releases
+        json([['name' => 'composer.json'], ['name' => 'src'], ['name' => 'tests']]), // root
+        json([['name' => 'tests.yml'], ['name' => 'phpstan.yml']]),           // .github/workflows
     ]);
 
     $auditor = new RepoAuditor($client, gitWith(true), RepoAuditor::CHECKS, '/code', "name: automerge\r\n");
@@ -74,6 +76,8 @@ it('reports every problem of a neglected repo', function () {
             ['name' => 'PHPStan', 'head_sha' => 'h2', 'conclusion' => 'success', 'html_url' => 'https://ci/run/2'],
         ]]),
         json(['enabled' => false, 'enforced_by_owner' => false]),            // immutable releases off
+        json([['name' => 'composer.json'], ['name' => 'src']]),              // root: no tests/
+        json([['name' => 'pint.yml']]),                                       // no tests workflow
     ]);
 
     $auditor = new RepoAuditor($client, gitWith(false), RepoAuditor::CHECKS, '/code', 'name: automerge');
@@ -84,9 +88,10 @@ it('reports every problem of a neglected repo', function () {
     ]));
 
     expect(array_map(fn ($f) => $f->check, $findings))
-        ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable'])
+        ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests'])
         ->and($findings[3]->message)->toBe('Default branch is main, expected 2.x')
-        ->and($findings[6]->message)->toContain('https://ci/run/1');
+        ->and($findings[6]->message)->toContain('https://ci/run/1')
+        ->and($findings[8]->message)->toBe('PHP repo without a tests/ folder and a tests workflow');
 });
 
 it('checks CI on the newest commit only, so an old fixed failure is not reported', function () {
@@ -250,4 +255,26 @@ it('rejects unknown checks', function () {
     $this->artisan('audit', ['owner' => 'acme', '--only' => 'spelling'])
         ->expectsOutputToContain("Unknown check 'spelling'")
         ->assertExitCode(1);
+});
+
+it('checks tests only on PHP repos', function () {
+    $history = [];
+    $client = githubClient([
+        json([['name' => 'package.json'], ['name' => 'src']]),               // root: not a PHP repo
+    ], $history);
+
+    expect((new RepoAuditor($client, gitWith(true), ['tests']))->audit(repo()))->toBe([])
+        ->and($history)->toHaveCount(1);
+});
+
+it('reports a PHP repo that has tests but no workflow running them', function () {
+    $client = githubClient([
+        json([['name' => 'composer.json'], ['name' => 'tests']]),
+        json(['message' => 'Not Found'], 404),                                // no .github/workflows
+    ]);
+
+    $findings = (new RepoAuditor($client, gitWith(true), ['tests']))->audit(repo());
+
+    expect($findings)->toHaveCount(1)
+        ->and($findings[0]->message)->toBe('PHP repo without a tests workflow');
 });

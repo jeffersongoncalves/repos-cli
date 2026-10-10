@@ -11,7 +11,7 @@ use App\Services\Hosts\GithubClient;
  */
 class RepoAuditor
 {
-    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable'];
+    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests'];
 
     /**
      * @param  list<string>  $checks  subset of self::CHECKS to run
@@ -76,7 +76,35 @@ class RepoAuditor
             $add('immutable', 'Release immutability is disabled');
         }
 
+        if ($this->runs('tests') && ($missing = $this->missingTests($repo)) !== []) {
+            $add('tests', 'PHP repo without '.implode(' and ', $missing));
+        }
+
         return $findings;
+    }
+
+    /**
+     * What a PHP repo (composer.json at the root of the default branch) lacks: a tests/ folder and a
+     * workflow whose file name mentions "test". Non-PHP repos are not checked.
+     *
+     * @return list<string>
+     */
+    protected function missingTests(Repo $repo): array
+    {
+        $root = $this->client->listDirectory($repo->owner, $repo->name);
+
+        if (! in_array('composer.json', $root, true)) {
+            return [];
+        }
+
+        $missing = in_array('tests', $root, true) ? [] : ['a tests/ folder'];
+        $workflows = $this->client->listDirectory($repo->owner, $repo->name, '.github/workflows');
+
+        if (array_filter($workflows, fn (string $file) => str_contains(strtolower($file), 'test')) === []) {
+            $missing[] = 'a tests workflow';
+        }
+
+        return $missing;
     }
 
     /**

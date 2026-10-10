@@ -27,7 +27,7 @@ class AuditCommand extends Command
         {--host=github : Only github is supported}
         {--profile=default : Named credential profile to use for the API calls}
         {--path= : Folder that should hold a clone of every repo (default: current directory)}
-        {--only= : Comma-separated checks to run (clone,website,description,branch,dependabot,automerge,ci,immutable,dependabot-prs,social,catalog)}
+        {--only= : Comma-separated checks to run (clone,website,description,branch,dependabot,automerge,ci,immutable,tests,dependabot-prs,social,catalog)}
         {--skip= : Comma-separated checks to skip}
         {--automerge-template= : Approved dependabot-auto-merge.yml to compare against (automerge check is skipped without it)}
         {--catalog= : Product catalog (plugins.json) to cross-check against GitHub and Packagist (catalog check is skipped without it)}
@@ -39,7 +39,7 @@ class AuditCommand extends Command
         {--qualifier=user : user or org (search used by the dependabot-prs check)}
         {--json : Print the findings as JSON}';
 
-    protected $description = 'Audit every repo of an owner: local clone, website, description, default branch, Dependabot setup, CI, release immutability, failing Dependabot PRs, social preview and the product catalog';
+    protected $description = 'Audit every repo of an owner: local clone, website, description, default branch, Dependabot setup, CI, release immutability, PHP repos without tests, failing Dependabot PRs, social preview and the product catalog';
 
     public function handle(HostClientFactory $factory, GitOperationsService $git, CatalogAuditor $catalogAuditor): int
     {

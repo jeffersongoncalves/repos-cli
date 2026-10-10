@@ -107,6 +107,30 @@ class GithubClient extends AbstractApiClient implements HostClient
     }
 
     /**
+     * Entry names of a folder on the default branch (repo root when $path is empty); [] when it doesn't exist.
+     *
+     * @return list<string>
+     */
+    public function listDirectory(string $owner, string $repo, string $path = ''): array
+    {
+        try {
+            $entries = $this->get(rtrim("repos/{$owner}/{$repo}/contents/{$path}", '/'));
+        } catch (ApiException $e) {
+            if ($e->statusCode === 404) {
+                return [];
+            }
+
+            throw $e;
+        }
+
+        if (isset($entries['type'])) {
+            return []; // $path is a file: the API returns that file's object instead of a listing
+        }
+
+        return array_map(fn (mixed $entry) => is_array($entry) ? (string) ($entry['name'] ?? '') : '', array_values($entries));
+    }
+
+    /**
      * Whether "release immutability" is on. Null when the token can't read the setting (403/404), so a
      * token without admin access doesn't turn every repo into a finding.
      */
