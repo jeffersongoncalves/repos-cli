@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-10-10
+
+### Features
+
+- **audit:** Tests check for PHP repos without a suite or a test workflow
+
 ## [1.5.0] - 2026-10-08
 
 ### Features
