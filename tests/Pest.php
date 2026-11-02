@@ -1,6 +1,10 @@
 <?php
 
+use Illuminate\Support\Sleep;
 use Tests\TestCase;
+
+// Retry back-off and device-auth polling wait via Sleep — never really sleep in tests.
+uses()->beforeEach(fn () => Sleep::fake())->in('Feature', 'Unit');
 
 /*
 |--------------------------------------------------------------------------

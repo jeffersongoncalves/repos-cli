@@ -4,6 +4,7 @@ namespace App\Services\Hosts;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\BadResponseException;
+use Illuminate\Support\Sleep;
 use RuntimeException;
 
 /**
@@ -46,7 +47,7 @@ abstract class AbstractDeviceAuth
     public function pollForToken(string $deviceCode, int $interval): array
     {
         while (true) {
-            sleep($interval);
+            Sleep::for($interval)->seconds();
 
             $response = $this->post($this->tokenUrl(), [
                 'client_id' => $this->clientId(),

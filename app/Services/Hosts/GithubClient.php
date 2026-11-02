@@ -7,6 +7,7 @@ use App\DTOs\Issue;
 use App\DTOs\Repo;
 use App\Exceptions\GithubApiException;
 use GuzzleHttp\Client;
+use Illuminate\Support\Sleep;
 use JeffersonGoncalves\LaravelZero\ApiClient\AbstractApiClient;
 use JeffersonGoncalves\LaravelZero\ApiClient\ApiException;
 use JeffersonGoncalves\LaravelZero\ApiClient\Auth;
@@ -41,7 +42,7 @@ class GithubClient extends AbstractApiClient implements HostClient
                     throw $e;
                 }
 
-                usleep(self::RETRY_DELAY_MS * 1000 * $attempt);
+                Sleep::for(self::RETRY_DELAY_MS * $attempt)->milliseconds();
             }
         }
     }
