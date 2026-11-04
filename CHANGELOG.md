@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2026-11-04
+
+### Dependencies
+
+- **deps:** Bump shivammathur/setup-php (#12)
+- **deps:** Bump stefanzweifel/git-auto-commit-action (#14)
+
+### Miscellaneous Tasks
+
+- **deps-dev:** Bump the composer-deps group with 2 updates
+- Upgrade to Laravel Zero 13
+
+### Other
+
+- Auto-assign issues and pull requests
+
+### Refactor
+
+- Wait via Sleep facade so tests never really sleep
+
 ## [1.6.0] - 2026-10-10
 
 ### Features
