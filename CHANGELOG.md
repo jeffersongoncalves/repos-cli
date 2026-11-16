@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.2] - 2026-11-16
+
+### CI/CD
+
+- Auto-merge dependabot github-actions minor/patch (#19)
+
 ## [1.7.1] - 2026-11-11
 
 ### Bug Fixes
