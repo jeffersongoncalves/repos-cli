@@ -11,7 +11,7 @@ use App\Services\Hosts\GithubClient;
  */
 class RepoAuditor
 {
-    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests'];
+    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations'];
 
     /**
      * @param  list<string>  $checks  subset of self::CHECKS to run
@@ -80,7 +80,62 @@ class RepoAuditor
             $add('tests', 'PHP repo without '.implode(' and ', $missing));
         }
 
+        if ($this->runs('migrations') && ($unregistered = $this->unregisteredMigrationStubs($repo)) !== []) {
+            $add('migrations', count($unregistered).' migration stub(s) missing from hasMigrations(): '.implode(', ', $unregistered));
+        }
+
         return $findings;
+    }
+
+    /**
+     * database/migrations/*.php.stub files the package's service provider(s) in src/ don't register.
+     *
+     * @return list<string>
+     */
+    protected function unregisteredMigrationStubs(Repo $repo): array
+    {
+        $stubs = array_values(array_filter(
+            $this->client->listDirectory($repo->owner, $repo->name, 'database/migrations'),
+            fn (string $file) => str_ends_with($file, '.php.stub'),
+        ));
+
+        if ($stubs === []) {
+            return [];
+        }
+
+        $providers = array_filter(
+            $this->client->listDirectory($repo->owner, $repo->name, 'src'),
+            fn (string $file) => str_ends_with($file, 'ServiceProvider.php'),
+        );
+        $source = implode("\n", array_map(
+            fn (string $file) => (string) $this->client->fileContent($repo->owner, $repo->name, "src/{$file}"),
+            $providers,
+        ));
+
+        return self::unregisteredMigrations($stubs, $source);
+    }
+
+    /**
+     * Stub names (without .php.stub) that never appear as a string literal in $providerSource.
+     * discoversMigrations() registers every file, so nothing is missing then.
+     *
+     * @param  list<string>  $stubs  file names in database/migrations
+     * @return list<string>
+     */
+    public static function unregisteredMigrations(array $stubs, string $providerSource): array
+    {
+        if (str_contains($providerSource, 'discoversMigrations(')) {
+            return [];
+        }
+
+        // ponytail: any quoted string counts, so names passed via a constant/property
+        // (hasMigrations(static::MIGRATIONS)) are found too. Stub names are distinctive enough.
+        preg_match_all('/[\'"]([^\'"\s]+)[\'"]/', $providerSource, $literals);
+        $registered = array_map(fn (string $name) => (string) preg_replace('/\.php(\.stub)?$/', '', $name), $literals[1]);
+
+        $names = array_map(fn (string $stub) => substr($stub, 0, -strlen('.php.stub')), $stubs);
+
+        return array_values(array_diff($names, $registered));
     }
 
     /**

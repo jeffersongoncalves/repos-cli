@@ -12,6 +12,22 @@ it('expects main everywhere else', function () {
         ->and(RepoAuditor::expectedDefaultBranch([]))->toBe('main');
 });
 
+it('lists migration stubs the service provider does not register', function () {
+    $stubs = ['create_a_table.php.stub', 'create_b_table.php.stub', 'add_c_to_a_table.php.stub', 'README.md'];
+    $provider = <<<'PHP'
+        $package->name('x')
+            ->hasMigration('create_a_table')
+            ->hasMigrations([
+                "create_b_table.php",
+            ]);
+        PHP;
+
+    expect(RepoAuditor::unregisteredMigrations(array_slice($stubs, 0, 3), $provider))->toBe(['add_c_to_a_table'])
+        ->and(RepoAuditor::unregisteredMigrations(['create_a_table.php.stub'], "const MIGRATIONS = ['create_a_table'];\n->hasMigrations(static::MIGRATIONS)"))->toBe([])
+        ->and(RepoAuditor::unregisteredMigrations(['create_a_table.php.stub'], '->discoversMigrations()'))->toBe([])
+        ->and(RepoAuditor::unregisteredMigrations(['create_a_table.php.stub'], ''))->toBe(['create_a_table']);
+});
+
 it('compares files ignoring line endings and surrounding whitespace', function () {
     expect(RepoAuditor::sameContent("a: 1\r\nb: 2\r\n", "a: 1\nb: 2"))->toBeTrue()
         ->and(RepoAuditor::sameContent("a: 1\n", "a: 2\n"))->toBeFalse();
