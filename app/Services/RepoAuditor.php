@@ -124,14 +124,24 @@ class RepoAuditor
      */
     public static function unregisteredMigrations(array $stubs, string $providerSource): array
     {
-        if (str_contains($providerSource, 'discoversMigrations(')) {
-            return [];
-        }
+        // Tokenize so comments never count: a commented-out discoversMigrations() or name is ignored.
+        $source = str_starts_with(ltrim($providerSource), '<?php') ? $providerSource : "<?php\n".$providerSource;
+        $tokens = array_values(array_filter(token_get_all($source), fn ($t) => ! is_array($t) || ! in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)));
 
-        // ponytail: any quoted string counts, so names passed via a constant/property
+        // ponytail: any string literal counts, so names passed via a constant/property
         // (hasMigrations(static::MIGRATIONS)) are found too. Stub names are distinctive enough.
-        preg_match_all('/[\'"]([^\'"\s]+)[\'"]/', $providerSource, $literals);
-        $registered = array_map(fn (string $name) => (string) preg_replace('/\.php(\.stub)?$/', '', $name), $literals[1]);
+        $registered = [];
+        foreach ($tokens as $i => $token) {
+            if (! is_array($token)) {
+                continue;
+            }
+            if ($token[0] === T_STRING && $token[1] === 'discoversMigrations' && ($tokens[$i + 1] ?? null) === '(') {
+                return [];
+            }
+            if ($token[0] === T_CONSTANT_ENCAPSED_STRING) {
+                $registered[] = (string) preg_replace('/\.php(\.stub)?$/', '', substr($token[1], 1, -1));
+            }
+        }
 
         $names = array_map(fn (string $stub) => substr($stub, 0, -strlen('.php.stub')), $stubs);
 
