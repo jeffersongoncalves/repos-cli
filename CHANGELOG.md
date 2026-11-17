@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-11-17
+
+### Features
+
+- **audit:** Flag migration stubs missing from hasMigrations()
+
+### Miscellaneous Tasks
+
+- **deps-dev:** Bump jeffersongoncalves/laravel-zero-api-client
+
 ## [1.7.2] - 2026-11-16
 
 ### CI/CD
