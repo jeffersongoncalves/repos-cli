@@ -24,7 +24,10 @@ it('lists migration stubs the service provider does not register', function () {
 
     expect(RepoAuditor::unregisteredMigrations(array_slice($stubs, 0, 3), $provider))->toBe(['add_c_to_a_table'])
         ->and(RepoAuditor::unregisteredMigrations(['create_a_table.php.stub'], "const MIGRATIONS = ['create_a_table'];\n->hasMigrations(static::MIGRATIONS)"))->toBe([])
-        ->and(RepoAuditor::unregisteredMigrations(['create_a_table.php.stub'], '->discoversMigrations()'))->toBe([])
+        ->and(RepoAuditor::unregisteredMigrations(['create_a_table.php.stub'], '$package->discoversMigrations();'))->toBe([])
+        ->and(RepoAuditor::unregisteredMigrations(['create_a_table.php.stub'], '$package->discoversMigrations ();'))->toBe([])
+        ->and(RepoAuditor::unregisteredMigrations(['create_a_table.php.stub'], "// \$package->discoversMigrations();\n/* 'create_a_table' */"))->toBe(['create_a_table'])
+        ->and(RepoAuditor::unregisteredMigrations(['create_a_table.php.stub'], "\$x = 'discoversMigrations()';"))->toBe(['create_a_table'])
         ->and(RepoAuditor::unregisteredMigrations(['create_a_table.php.stub'], ''))->toBe(['create_a_table']);
 });
 
