@@ -185,6 +185,7 @@ repos audit acme --automerge-template=~/templates/dependabot-auto-merge.yml
 | `ci` | a push-triggered workflow run of the default branch's HEAD commit failed |
 | `immutable` | release immutability is disabled (skipped silently when the token can't read the setting) |
 | `tests` | a PHP repo (`composer.json` at the root of the default branch) has no `tests/` folder or no workflow whose file name contains `test` |
+| `migrations` | a `database/migrations/*.php.stub` file isn't registered via `hasMigration()`/`hasMigrations()` in `src/*ServiceProvider.php` (its name never appears as a string there) (skipped when the provider uses `discoversMigrations()`) |
 | `dependabot-prs` | an open Dependabot pull request has failing checks |
 | `social` | a public repo still uses GitHub's generated social preview image (one GraphQL call per 100 repos) |
 | `catalog` | an entry of `--catalog` (a `plugins.json`) has no GitHub repo, an archived one, or no Packagist package; or the owner publishes a Packagist package the catalog doesn't list and whose repo isn't archived (skipped without it) |
