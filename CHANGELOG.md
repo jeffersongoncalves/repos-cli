@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.1] - 2026-11-17
+
+### Bug Fixes
+
+- **audit:** Detect discoversMigrations() via tokenizer
+
 ## [1.8.0] - 2026-11-17
 
 ### Features
