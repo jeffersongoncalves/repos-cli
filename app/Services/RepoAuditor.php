@@ -5,13 +5,16 @@ namespace App\Services;
 use App\DTOs\Finding;
 use App\DTOs\Repo;
 use App\Services\Hosts\GithubClient;
+use Closure;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\GuzzleException;
 
 /**
  * Per-repository hygiene checks behind `repos audit`.
  */
 class RepoAuditor
 {
-    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'dependabot-ignore', 'kit-drift'];
+    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'dependabot-ignore', 'kit-drift', 'stale-own'];
 
     /**
      * Files every starter kit keeps identical to its FilaKit base (filakit / filakitv4 / filakitv5): infra and
@@ -30,10 +33,17 @@ class RepoAuditor
     /** @var array<string, array<string, string>> base kit => its tree, fetched once per run */
     protected array $baseTrees = [];
 
+    /** @var array<string, list<string>> package => its released versions, fetched once per run */
+    protected array $versions = [];
+
+    /** @var Closure(string): list<string> */
+    protected Closure $releasedVersions;
+
     /**
      * @param  list<string>  $checks  subset of self::CHECKS to run
      * @param  string|null  $localPath  folder that should hold a clone of every repo (null skips `clone`)
      * @param  string|null  $automergeTemplate  approved dependabot-auto-merge.yml (null skips `automerge`)
+     * @param  (Closure(string): list<string>)|null  $releasedVersions  versions of a package on Packagist
      */
     public function __construct(
         protected GithubClient $client,
@@ -41,7 +51,19 @@ class RepoAuditor
         protected array $checks = self::CHECKS,
         protected ?string $localPath = null,
         protected ?string $automergeTemplate = null,
-    ) {}
+        ?Closure $releasedVersions = null,
+    ) {
+        $this->releasedVersions = $releasedVersions ?? function (string $package): array {
+            try {
+                $response = (new Client(['timeout' => 30]))->get("https://repo.packagist.org/p2/{$package}.json");
+            } catch (GuzzleException) {
+                return [];
+            }
+            $data = json_decode((string) $response->getBody(), true);
+
+            return array_values(array_map(fn ($v) => (string) ($v['version'] ?? ''), (array) ($data['packages'][$package] ?? [])));
+        };
+    }
 
     /**
      * @return list<Finding>
@@ -140,13 +162,26 @@ class RepoAuditor
             }
         }
 
-        if ($this->runs('kit-drift') && ($base = self::kitBase($repo->name)) !== null) {
+        if (($this->runs('kit-drift') || $this->runs('stale-own')) && ($base = self::kitBase($repo->name)) !== null) {
             $tree = $this->client->treeShas($repo->owner, $repo->name);
             // Every kit is a Laravel app with FilaKit's install.php (each renames config/filakit.php to its own).
             if (isset($tree['artisan'], $tree['install.php'])) {
-                $this->baseTrees[$base] ??= $this->client->treeShas($repo->owner, $base);
-                if (($drift = self::kitDrift($tree, $this->baseTrees[$base])) !== []) {
-                    $add('kit-drift', "differs from {$base}: ".implode(', ', $drift));
+                if ($this->runs('kit-drift')) {
+                    $this->baseTrees[$base] ??= $this->client->treeShas($repo->owner, $base);
+                    if (($drift = self::kitDrift($tree, $this->baseTrees[$base])) !== []) {
+                        $add('kit-drift', "differs from {$base}: ".implode(', ', $drift));
+                    }
+                }
+
+                if ($this->runs('stale-own') && isset($tree['composer.lock'])) {
+                    $behind = self::staleOwnPackages(
+                        (string) $this->client->fileContent($repo->owner, $repo->name, 'composer.lock'),
+                        $repo->owner,
+                        fn (string $package) => $this->versions[$package] ??= ($this->releasedVersions)($package),
+                    );
+                    if ($behind !== []) {
+                        $add('stale-own', 'composer.lock is behind your own releases: '.implode(', ', $behind));
+                    }
                 }
             }
         }
@@ -169,6 +204,41 @@ class RepoAuditor
             '5' => 'filakitv5',
             default => 'filakit',
         };
+    }
+
+    /**
+     * The owner's packages locked at an older version than their newest stable release of the same major (what a
+     * plain `composer update` would bring): the kit ships without the latest fixes of its own packages.
+     *
+     * @param  Closure(string): list<string>  $releasedVersions
+     * @return list<string> "vendor/package 1.2.0 → 1.3.1"
+     */
+    public static function staleOwnPackages(string $composerLock, string $owner, Closure $releasedVersions): array
+    {
+        $lock = json_decode($composerLock, true);
+        $stable = '/^v?(\d+)\.\d+\.\d+$/';
+        $behind = [];
+
+        foreach ([...(array) ($lock['packages'] ?? []), ...(array) ($lock['packages-dev'] ?? [])] as $package) {
+            $name = (string) ($package['name'] ?? '');
+            $locked = (string) ($package['version'] ?? '');
+            if (! str_starts_with(strtolower($name), strtolower($owner).'/') || preg_match($stable, $locked, $m) !== 1) {
+                continue;
+            }
+
+            $newest = $locked;
+            foreach ($releasedVersions($name) as $version) {
+                if (preg_match($stable, $version, $v) === 1 && $v[1] === $m[1] && version_compare(ltrim($version, 'v'), ltrim($newest, 'v'), '>')) {
+                    $newest = $version;
+                }
+            }
+
+            if ($newest !== $locked) {
+                $behind[] = "{$name} {$locked} → {$newest}";
+            }
+        }
+
+        return $behind;
     }
 
     /**
@@ -223,6 +293,10 @@ class RepoAuditor
         $rows = [];
         foreach (preg_split('/\R/', $readme) ?: [] as $line) {
             if (! str_starts_with(trim($line), '|')) {
+                if ($rows !== []) {
+                    break; // only the first table with version rows: later tables (screenshots, options) can hold "4.x" too
+                }
+
                 continue;
             }
             // "**1.x**", "`1.x`" and "[1.x](…/tree/1.x)" are all the 1.x cell, in any column.

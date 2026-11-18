@@ -60,6 +60,7 @@ it('matches the README compatibility table against the version branches', functi
         ->and(RepoAuditor::compatProblems($table.'| 3.x | 5.x | `^3.0` |'."\n| 4.x | 6.x | `^4.0` |", $filament))
         ->toBe(['README compatibility table lists 4.x, which is not a version branch'])
         ->and(RepoAuditor::compatProblems("| Filament | Branch |\n|---|---|\n| v3 | `1.x` |\n| Filament v4 | [2.x](https://github.com/a/b/tree/2.x) |\n| ^5.0 | 3.x |", $filament))->toBe([])
+        ->and(RepoAuditor::compatProblems($table."| 3.x | 5.x | `^3.0` |\n\n## Options\n\n| Since | Value |\n|---|---|\n| 4.x | on |", $filament))->toBe([])
         ->and(RepoAuditor::compatProblems('# Widget', $filament))->toBe(['README has no compatibility table (version branch → Filament)']);
 });
 
@@ -94,6 +95,27 @@ it('lists the shared kit files that differ from the base', function () {
 
     expect(RepoAuditor::kitDrift($kit, $base))->toBe(['phpunit.xml (missing)', 'config/cache.php'])
         ->and(RepoAuditor::kitDrift($base, $base))->toBe([]);
+});
+
+it('lists own packages locked behind their newest release of the same major', function () {
+    $lock = json_encode([
+        'packages' => [
+            ['name' => 'acme/laravel-a', 'version' => '1.2.0'],
+            ['name' => 'acme/filament-b', 'version' => '3.0.1'],
+            ['name' => 'acme/laravel-c', 'version' => 'dev-main'],
+            ['name' => 'other/lib', 'version' => '1.0.0'],
+        ],
+        'packages-dev' => [['name' => 'acme/tool', 'version' => 'v2.0.0']],
+    ]);
+    $released = [
+        'acme/laravel-a' => ['2.0.0', '1.3.1', '1.3.0', '1.2.0', '1.4.0-beta1'],
+        'acme/filament-b' => ['3.0.1', '2.9.0'],
+        'acme/tool' => ['v2.1.0', 'v2.0.0'],
+    ];
+
+    expect(RepoAuditor::staleOwnPackages($lock, 'Acme', fn (string $p) => $released[$p] ?? []))
+        ->toBe(['acme/laravel-a 1.2.0 → 1.3.1', 'acme/tool v2.0.0 → v2.1.0'])
+        ->and(RepoAuditor::staleOwnPackages('', 'acme', fn () => []))->toBe([]);
 });
 
 it('compares files ignoring line endings and surrounding whitespace', function () {

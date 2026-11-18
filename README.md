@@ -189,6 +189,7 @@ repos audit acme --automerge-template=~/templates/dependabot-auto-merge.yml
 | `pinned` | `composer.json` on the default branch requires a package at an exact version (`"1.0"`, `"2.1.3"`) instead of a range: usually a lost `^` (`composer.bat` on Windows strips `^` and `~`) |
 | `compat` | Multi-branch packages: the README compatibility table must have a row per `N.x` branch naming the Filament major that branch's `composer.json` requires, and no row for a branch that doesn't exist |
 | `kit-drift` | Starter kits (`*kit`, `*kitvN`, `*themevN` with FilaKit's `install.php`): the shared infra and framework files (workflows, `install.php`, `phpunit.xml`, `config/cache.php`…) must be identical to the FilaKit base of that version (`filakit`, `filakitv4`, `filakitv5`). One tree call per kit |
+| `stale-own` | Starter kits: `composer.lock` locks one of the owner's packages below its newest stable release of the same major (`composer update vendor/*` would bring it). Reads the lock plus one Packagist call per package, cached for the run |
 | `dependabot-ignore` | Multi-branch packages: each `N.x` composer entry in `dependabot.yml` must ignore the next major of the branch's Filament package (`>=4.0` on a Filament 3 branch), or Dependabot opens cross-major PRs |
 | `dependabot-prs` | an open Dependabot pull request has failing checks |
 | `social` | a public repo still uses GitHub's generated social preview image (one GraphQL call per 100 repos) |
