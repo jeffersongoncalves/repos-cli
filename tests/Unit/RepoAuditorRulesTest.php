@@ -34,10 +34,10 @@ it('lists migration stubs the service provider does not register', function () {
 it('lists requirements pinned to an exact version', function () {
     $composer = json_encode([
         'require' => ['php' => '^8.2', 'acme/a' => '1.0', 'acme/b' => '^2.1', 'acme/c' => 'v3.0.1', 'acme/d' => '~1.0', 'acme/e' => '*', 'acme/f' => 'dev-main'],
-        'require-dev' => ['acme/g' => '2.1.3', 'acme/h' => '>=1.0', 'acme/i' => '2.1.3-stable', 'acme/j' => '>=2.1.3-stable', 'acme/k' => '1.0.0-RC2'],
+        'require-dev' => ['acme/g' => '2.1.3', 'acme/h' => '>=1.0', 'acme/i' => '2.1.3-stable', 'acme/j' => '>=2.1.3-stable', 'acme/k' => '1.0.0-RC2', 'acme/l' => '1.0.0-RC1@RC', 'acme/m' => '^1.0@beta'],
     ]);
 
-    expect(RepoAuditor::pinnedConstraints($composer))->toBe(['acme/a 1.0', 'acme/c v3.0.1', 'acme/g 2.1.3', 'acme/i 2.1.3-stable', 'acme/k 1.0.0-RC2'])
+    expect(RepoAuditor::pinnedConstraints($composer))->toBe(['acme/a 1.0', 'acme/c v3.0.1', 'acme/g 2.1.3', 'acme/i 2.1.3-stable', 'acme/k 1.0.0-RC2', 'acme/l 1.0.0-RC1@RC'])
         ->and(RepoAuditor::pinnedConstraints('{}'))->toBe([])
         ->and(RepoAuditor::pinnedConstraints('not json'))->toBe([]);
 });
