@@ -79,6 +79,23 @@ it('expects each version branch to ignore the next Filament major in dependabot.
         ->and(RepoAuditor::dependabotIgnoreProblems($entry('1.x', ''), ['3.x' => ['filament/filament', 5]]))->toBe(['dependabot.yml has no composer entry for 3.x']);
 });
 
+it('finds the FilaKit base of a starter kit by name', function () {
+    expect(RepoAuditor::kitBase('mfakitv5'))->toBe('filakitv5')
+        ->and(RepoAuditor::kitBase('helpdeskkitv4'))->toBe('filakitv4')
+        ->and(RepoAuditor::kitBase('editorialthemev3'))->toBe('filakit')
+        ->and(RepoAuditor::kitBase('teamkit'))->toBe('filakit')
+        ->and(RepoAuditor::kitBase('filakitv5'))->toBeNull()
+        ->and(RepoAuditor::kitBase('filament-ban'))->toBeNull();
+});
+
+it('lists the shared kit files that differ from the base', function () {
+    $base = ['artisan' => 'a', 'config/cache.php' => 'b', 'phpunit.xml' => 'c', 'app/Models/User.php' => 'd'];
+    $kit = ['artisan' => 'a', 'config/cache.php' => 'x', 'app/Models/User.php' => 'changed'];
+
+    expect(RepoAuditor::kitDrift($kit, $base))->toBe(['phpunit.xml (missing)', 'config/cache.php'])
+        ->and(RepoAuditor::kitDrift($base, $base))->toBe([]);
+});
+
 it('compares files ignoring line endings and surrounding whitespace', function () {
     expect(RepoAuditor::sameContent("a: 1\r\nb: 2\r\n", "a: 1\nb: 2"))->toBeTrue()
         ->and(RepoAuditor::sameContent("a: 1\n", "a: 2\n"))->toBeFalse();
