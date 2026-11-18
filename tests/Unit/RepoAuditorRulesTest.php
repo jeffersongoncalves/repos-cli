@@ -60,6 +60,7 @@ it('matches the README compatibility table against the version branches', functi
         ->and(RepoAuditor::compatProblems($table.'| 3.x | 5.x | `^3.0` |'."\n| 4.x | 6.x | `^4.0` |", $filament))
         ->toBe(['README compatibility table lists 4.x, which is not a version branch'])
         ->and(RepoAuditor::compatProblems("| Filament | Branch |\n|---|---|\n| v3 | `1.x` |\n| Filament v4 | [2.x](https://github.com/a/b/tree/2.x) |\n| ^5.0 | 3.x |", $filament))->toBe([])
+        ->and(RepoAuditor::compatProblems($table."| 3.x | 5.x | `^3.0` |\n\n## Options\n\n| Since | Value |\n|---|---|\n| 4.x | on |", $filament))->toBe([])
         ->and(RepoAuditor::compatProblems('# Widget', $filament))->toBe(['README has no compatibility table (version branch → Filament)']);
 });
 

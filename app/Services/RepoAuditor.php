@@ -293,6 +293,10 @@ class RepoAuditor
         $rows = [];
         foreach (preg_split('/\R/', $readme) ?: [] as $line) {
             if (! str_starts_with(trim($line), '|')) {
+                if ($rows !== []) {
+                    break; // only the first table with version rows: later tables (screenshots, options) can hold "4.x" too
+                }
+
                 continue;
             }
             // "**1.x**", "`1.x`" and "[1.x](…/tree/1.x)" are all the 1.x cell, in any column.
