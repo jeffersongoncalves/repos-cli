@@ -11,7 +11,7 @@ use App\Services\Hosts\GithubClient;
  */
 class RepoAuditor
 {
-    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations'];
+    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned'];
 
     /**
      * @param  list<string>  $checks  subset of self::CHECKS to run
@@ -84,7 +84,37 @@ class RepoAuditor
             $add('migrations', count($unregistered).' migration stub(s) missing from hasMigrations(): '.implode(', ', $unregistered));
         }
 
+        if ($this->runs('pinned') && ($composer = $this->client->fileContent($repo->owner, $repo->name, 'composer.json')) !== null
+            && ($pinned = self::pinnedConstraints($composer)) !== []) {
+            $add('pinned', 'composer.json pins exact versions: '.implode(', ', $pinned));
+        }
+
         return $findings;
+    }
+
+    /**
+     * require/require-dev entries pinned to an exact version ("1.0", "2.1.3", "v3.0") instead of a range: usually a
+     * lost caret (composer.bat on Windows strips ^ and ~), so the package never gets its updates.
+     *
+     * @return list<string> "vendor/package version"
+     */
+    public static function pinnedConstraints(string $composerJson): array
+    {
+        $data = json_decode($composerJson, true);
+        if (! is_array($data)) {
+            return [];
+        }
+
+        $pinned = [];
+        foreach (['require', 'require-dev'] as $section) {
+            foreach ((array) ($data[$section] ?? []) as $package => $constraint) {
+                if (is_string($constraint) && preg_match('/^v?\d+(\.\d+){0,3}(-(stable|rc|beta|alpha|patch|p)\.?\d*)?(@(stable|rc|beta|alpha|dev))?$/i', trim($constraint)) === 1) {
+                    $pinned[] = "{$package} {$constraint}";
+                }
+            }
+        }
+
+        return $pinned;
     }
 
     /**

@@ -60,6 +60,7 @@ it('reports nothing for a healthy repo', function () {
         json([['name' => 'composer.json'], ['name' => 'src'], ['name' => 'tests']]), // root
         json([['name' => 'tests.yml'], ['name' => 'phpstan.yml']]),           // .github/workflows
         json(['message' => 'Not Found'], 404),                                // no database/migrations
+        json(['content' => base64_encode('{"require":{"php":"^8.2","acme/a":"^1.0"}}')]), // composer.json
     ]);
 
     $auditor = new RepoAuditor($client, gitWith(true), RepoAuditor::CHECKS, '/code', "name: automerge\r\n");
@@ -82,6 +83,7 @@ it('reports every problem of a neglected repo', function () {
         json([['name' => 'create_a_table.php.stub'], ['name' => 'add_b_to_a_table.php.stub']]), // database/migrations
         json([['name' => 'WidgetServiceProvider.php'], ['name' => 'Widget.php']]), // src
         json(['content' => base64_encode("->hasMigrations(['create_a_table'])")]), // provider misses one stub
+        json(['content' => base64_encode('{"require":{"acme/security-headers":"1.0"}}')]), // composer.json: lost caret
     ]);
 
     $auditor = new RepoAuditor($client, gitWith(false), RepoAuditor::CHECKS, '/code', 'name: automerge');
@@ -92,11 +94,12 @@ it('reports every problem of a neglected repo', function () {
     ]));
 
     expect(array_map(fn ($f) => $f->check, $findings))
-        ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations'])
+        ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned'])
         ->and($findings[3]->message)->toBe('Default branch is main, expected 2.x')
         ->and($findings[6]->message)->toContain('https://ci/run/1')
         ->and($findings[8]->message)->toBe('PHP repo without a tests/ folder and a tests workflow')
-        ->and($findings[9]->message)->toBe('1 migration stub(s) missing from hasMigrations(): add_b_to_a_table');
+        ->and($findings[9]->message)->toBe('1 migration stub(s) missing from hasMigrations(): add_b_to_a_table')
+        ->and($findings[10]->message)->toBe('composer.json pins exact versions: acme/security-headers 1.0');
 });
 
 it('checks CI on the newest commit only, so an old fixed failure is not reported', function () {
