@@ -88,12 +88,12 @@ class GithubClient extends AbstractApiClient implements HostClient
     }
 
     /**
-     * Raw content of a file on the default branch, or null when it doesn't exist.
+     * Raw content of a file on the default branch (or on $ref), or null when it doesn't exist.
      */
-    public function fileContent(string $owner, string $repo, string $path): ?string
+    public function fileContent(string $owner, string $repo, string $path, ?string $ref = null): ?string
     {
         try {
-            $file = $this->get("repos/{$owner}/{$repo}/contents/{$path}");
+            $file = $this->get("repos/{$owner}/{$repo}/contents/{$path}", $ref === null ? [] : ['ref' => $ref]);
         } catch (ApiException $e) {
             if ($e->statusCode === 404) {
                 return null;

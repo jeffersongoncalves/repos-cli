@@ -11,7 +11,7 @@ use App\Services\Hosts\GithubClient;
  */
 class RepoAuditor
 {
-    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned'];
+    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'dependabot-ignore'];
 
     /**
      * @param  list<string>  $checks  subset of self::CHECKS to run
@@ -48,14 +48,25 @@ class RepoAuditor
             $add('description', 'Empty description');
         }
 
+        $branches = null;
+        $dependabot = false; // not fetched yet
+        $dependabotYml = function () use (&$dependabot, $repo): ?string {
+            if ($dependabot === false) {
+                $dependabot = $this->client->fileContent($repo->owner, $repo->name, '.github/dependabot.yml');
+            }
+
+            return $dependabot;
+        };
+
         if ($this->runs('branch')) {
-            $expected = self::expectedDefaultBranch($this->client->listBranches($repo->owner, $repo->name));
+            $branches = $this->client->listBranches($repo->owner, $repo->name);
+            $expected = self::expectedDefaultBranch($branches);
             if ($repo->defaultBranch !== null && $repo->defaultBranch !== $expected) {
                 $add('branch', "Default branch is {$repo->defaultBranch}, expected {$expected}");
             }
         }
 
-        if ($this->runs('dependabot') && $this->client->fileContent($repo->owner, $repo->name, '.github/dependabot.yml') === null) {
+        if ($this->runs('dependabot') && $dependabotYml() === null) {
             $add('dependabot', 'Missing .github/dependabot.yml');
         }
 
@@ -89,7 +100,146 @@ class RepoAuditor
             $add('pinned', 'composer.json pins exact versions: '.implode(', ', $pinned));
         }
 
+        if ($this->runs('compat') || $this->runs('dependabot-ignore')) {
+            // N.x branch => [Filament package, major] read from that branch's composer.json.
+            $filament = [];
+            foreach (array_filter($branches ?? $this->client->listBranches($repo->owner, $repo->name), fn (string $b) => preg_match('/^\d+\.x$/', $b) === 1) as $branch) {
+                $requirement = self::filamentRequirement((string) $this->client->fileContent($repo->owner, $repo->name, 'composer.json', $branch));
+                if ($requirement !== null) {
+                    $filament[$branch] = $requirement;
+                }
+            }
+
+            if ($filament !== [] && $this->runs('compat')) {
+                foreach (self::compatProblems((string) $this->client->fileContent($repo->owner, $repo->name, 'README.md'), $filament) as $problem) {
+                    $add('compat', $problem);
+                }
+            }
+
+            if ($filament !== [] && $this->runs('dependabot-ignore') && ($yml = $dependabotYml()) !== null) {
+                foreach (self::dependabotIgnoreProblems($yml, $filament) as $problem) {
+                    $add('dependabot-ignore', $problem);
+                }
+            }
+        }
+
         return $findings;
+    }
+
+    /**
+     * The Filament package a branch's composer.json requires (filament/filament first, else any filament/*) and the
+     * major of its constraint ("^4.0" → 4).
+     *
+     * @return array{0: string, 1: int}|null
+     */
+    public static function filamentRequirement(string $composerJson): ?array
+    {
+        $require = (array) (json_decode($composerJson, true)['require'] ?? []);
+        $names = array_values(array_filter(array_keys($require), fn ($name) => str_starts_with((string) $name, 'filament/')));
+        usort($names, fn ($a, $b) => ($b === 'filament/filament') <=> ($a === 'filament/filament'));
+
+        foreach ($names as $name) {
+            if (is_string($require[$name]) && preg_match('/\d+/', $require[$name], $m) === 1) {
+                return [(string) $name, (int) $m[0]];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The README's compatibility table (rows starting with an "N.x" cell) must list every version branch with the
+     * Filament major that branch requires, and no branch that doesn't exist.
+     *
+     * @param  array<string, array{0: string, 1: int}>  $filament  branch => [package, major]
+     * @return list<string>
+     */
+    public static function compatProblems(string $readme, array $filament): array
+    {
+        $rows = [];
+        foreach (preg_split('/\R/', $readme) ?: [] as $line) {
+            if (! str_starts_with(trim($line), '|')) {
+                continue;
+            }
+            // "**1.x**", "`1.x`" and "[1.x](…/tree/1.x)" are all the 1.x cell, in any column.
+            $cells = array_values(array_filter(array_map(
+                fn (string $c) => trim((string) preg_replace('/^\[(.*)\]\(.*\)$/', '$1', trim(str_replace(['*', '`'], '', $c)))),
+                explode('|', trim($line)),
+            ), fn (string $c) => $c !== ''));
+            foreach ($cells as $i => $cell) {
+                if (preg_match('/^\d+\.x$/', $cell) === 1) {
+                    unset($cells[$i]);
+                    $rows[$cell] ??= implode(' | ', $cells);
+
+                    break;
+                }
+            }
+        }
+
+        if ($rows === []) {
+            return ['README has no compatibility table (version branch → Filament)'];
+        }
+
+        $problems = [];
+        foreach ($filament as $branch => [, $major]) {
+            if (! isset($rows[$branch])) {
+                $problems[] = "README compatibility table has no row for {$branch} (Filament {$major})";
+            } elseif (preg_match('/(?<![\d.])'.$major.'(\.x|\.\d+)?(?![\d.])/', $rows[$branch]) !== 1) {
+                $problems[] = "README says {$branch} is for \"{$rows[$branch]}\", but its composer.json requires Filament {$major}";
+            }
+        }
+        foreach (array_diff(array_keys($rows), array_keys($filament)) as $stale) {
+            $problems[] = "README compatibility table lists {$stale}, which is not a version branch";
+        }
+
+        return $problems;
+    }
+
+    /**
+     * Each version branch's composer entry in dependabot.yml must ignore the next major of its Filament package, or
+     * Dependabot opens cross-major PRs (the next major lives on the next branch).
+     *
+     * @param  array<string, array{0: string, 1: int}>  $filament  branch => [package, major]
+     * @return list<string>
+     */
+    public static function dependabotIgnoreProblems(string $yml, array $filament): array
+    {
+        $entries = [];
+        foreach (preg_split('/^\s*-\s*package-ecosystem:/m', $yml) ?: [] as $block) {
+            if (preg_match('/^\s*[\'"]?composer\b/', $block) === 1 && preg_match('/target-branch:\s*[\'"]?([\w.\/-]+)/', $block, $m) === 1) {
+                $entries[$m[1]] = $block;
+            }
+        }
+
+        $problems = [];
+        foreach ($filament as $branch => [$package, $major]) {
+            $next = $major + 1;
+            if (! isset($entries[$branch])) {
+                $problems[] = "dependabot.yml has no composer entry for {$branch}";
+
+                continue;
+            }
+
+            $ignored = false;
+            foreach (array_slice(preg_split('/dependency-name:/', $entries[$branch]) ?: [], 1) as $rule) {
+                $name = trim((string) strtok(ltrim($rule), "\n"), " '\"");
+                $covers = $name === $package || ($name !== '' && str_ends_with($name, '*') && str_starts_with($package, rtrim($name, '*')));
+                if ($covers && (str_contains($rule, 'semver-major') || preg_match('/>=\s*'.$next.'(?!\d)/', $rule) === 1)) {
+                    $ignored = true;
+                }
+                // ponytail: a plugin built on another Filament package (filament-analytics-core) ignores that
+                // package's next major instead; its major isn't known here, so any ">=" on it counts.
+                if ($name !== $package && str_contains($name, 'filament') && ! str_ends_with($name, '*') && str_contains($rule, '>=')) {
+                    $ignored = true;
+                }
+            }
+
+            if (! $ignored) {
+                $problems[] = "dependabot.yml lets {$branch} update {$package} to {$next}.x: ignore '>={$next}.0' on its composer entry";
+            }
+        }
+
+        return $problems;
     }
 
     /**

@@ -187,6 +187,8 @@ repos audit acme --automerge-template=~/templates/dependabot-auto-merge.yml
 | `tests` | a PHP repo (`composer.json` at the root of the default branch) has no `tests/` folder or no workflow whose file name contains `test` |
 | `migrations` | a `database/migrations/*.php.stub` file isn't registered via `hasMigration()`/`hasMigrations()` in `src/*ServiceProvider.php` (its name never appears as a string there) (skipped when the provider uses `discoversMigrations()`) |
 | `pinned` | `composer.json` on the default branch requires a package at an exact version (`"1.0"`, `"2.1.3"`) instead of a range: usually a lost `^` (`composer.bat` on Windows strips `^` and `~`) |
+| `compat` | Multi-branch packages: the README compatibility table must have a row per `N.x` branch naming the Filament major that branch's `composer.json` requires, and no row for a branch that doesn't exist |
+| `dependabot-ignore` | Multi-branch packages: each `N.x` composer entry in `dependabot.yml` must ignore the next major of the branch's Filament package (`>=4.0` on a Filament 3 branch), or Dependabot opens cross-major PRs |
 | `dependabot-prs` | an open Dependabot pull request has failing checks |
 | `social` | a public repo still uses GitHub's generated social preview image (one GraphQL call per 100 repos) |
 | `catalog` | an entry of `--catalog` (a `plugins.json`) has no GitHub repo, an archived one, or no Packagist package; or the owner publishes a Packagist package the catalog doesn't list and whose repo isn't archived (skipped without it) |

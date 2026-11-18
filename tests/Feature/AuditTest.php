@@ -53,7 +53,10 @@ function repo(array $overrides = []): Repo
 it('reports nothing for a healthy repo', function () {
     $client = githubClient([
         json([['name' => '1.x'], ['name' => '2.x'], ['name' => '3.x']]),      // branches
-        json(['content' => base64_encode('version: 2')]),                    // dependabot.yml
+        json(['content' => base64_encode(implode("\n", array_map(
+            fn (int $n) => "  - package-ecosystem: composer\n    target-branch: {$n}.x\n    ignore:\n      - dependency-name: filament/filament\n        versions:\n          - '>=".($n + 3).".0'",
+            [1, 2, 3],
+        )))]),                                                                // dependabot.yml
         json(['content' => base64_encode("name: automerge\n")]),              // dependabot-auto-merge.yml
         json(['workflow_runs' => [['name' => 'Tests', 'head_sha' => 'h1', 'conclusion' => 'success', 'html_url' => 'u']]]),
         json(['enabled' => true, 'enforced_by_owner' => false]),             // immutable-releases
@@ -61,6 +64,10 @@ it('reports nothing for a healthy repo', function () {
         json([['name' => 'tests.yml'], ['name' => 'phpstan.yml']]),           // .github/workflows
         json(['message' => 'Not Found'], 404),                                // no database/migrations
         json(['content' => base64_encode('{"require":{"php":"^8.2","acme/a":"^1.0"}}')]), // composer.json
+        json(['content' => base64_encode('{"require":{"filament/filament":"^3.0"}}')]), // composer.json on 1.x
+        json(['content' => base64_encode('{"require":{"filament/filament":"^4.0"}}')]), // 2.x
+        json(['content' => base64_encode('{"require":{"filament/filament":"^5.0"}}')]), // 3.x
+        json(['content' => base64_encode("| Branch | Filament |\n|---|---|\n| 1.x | 3.x |\n| 2.x | 4.x |\n| 3.x | 5.x |")]), // README.md
     ]);
 
     $auditor = new RepoAuditor($client, gitWith(true), RepoAuditor::CHECKS, '/code', "name: automerge\r\n");
@@ -84,6 +91,9 @@ it('reports every problem of a neglected repo', function () {
         json([['name' => 'WidgetServiceProvider.php'], ['name' => 'Widget.php']]), // src
         json(['content' => base64_encode("->hasMigrations(['create_a_table'])")]), // provider misses one stub
         json(['content' => base64_encode('{"require":{"acme/security-headers":"1.0"}}')]), // composer.json: lost caret
+        json(['content' => base64_encode('{"require":{"filament/filament":"^3.0"}}')]), // composer.json on 1.x
+        json(['content' => base64_encode('{"require":{"filament/filament":"^4.0"}}')]), // 2.x
+        json(['content' => base64_encode("| Branch | Filament |\n|---|---|\n| 1.x | 3.x |\n| 2.x | 3.x |")]), // README: wrong 2.x row
     ]);
 
     $auditor = new RepoAuditor($client, gitWith(false), RepoAuditor::CHECKS, '/code', 'name: automerge');
@@ -94,7 +104,8 @@ it('reports every problem of a neglected repo', function () {
     ]));
 
     expect(array_map(fn ($f) => $f->check, $findings))
-        ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned'])
+        ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat'])
+        ->and($findings[11]->message)->toBe('README says 2.x is for "3.x", but its composer.json requires Filament 4')
         ->and($findings[3]->message)->toBe('Default branch is main, expected 2.x')
         ->and($findings[6]->message)->toContain('https://ci/run/1')
         ->and($findings[8]->message)->toBe('PHP repo without a tests/ folder and a tests workflow')
