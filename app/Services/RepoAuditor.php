@@ -14,7 +14,7 @@ use GuzzleHttp\Exception\GuzzleException;
  */
 class RepoAuditor
 {
-    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'dependabot-ignore', 'kit-drift', 'stale-own'];
+    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'dependabot-ignore', 'kit-drift', 'stale-own', 'own-major'];
 
     /**
      * Files every starter kit keeps identical to its FilaKit base (filakit / filakitv4 / filakitv5): infra and
@@ -88,6 +88,15 @@ class RepoAuditor
         }
 
         $branches = null;
+        $composers = [];
+        $composerAt = function (?string $ref) use (&$composers, $repo): ?string {
+            $key = $ref ?? '';
+            if (! array_key_exists($key, $composers)) {
+                $composers[$key] = $this->client->fileContent($repo->owner, $repo->name, 'composer.json', $ref);
+            }
+
+            return $composers[$key];
+        };
         $dependabot = false; // not fetched yet
         $dependabotYml = function () use (&$dependabot, $repo): ?string {
             if ($dependabot === false) {
@@ -134,7 +143,7 @@ class RepoAuditor
             $add('migrations', count($unregistered).' migration stub(s) missing from hasMigrations(): '.implode(', ', $unregistered));
         }
 
-        if ($this->runs('pinned') && ($composer = $this->client->fileContent($repo->owner, $repo->name, 'composer.json')) !== null
+        if ($this->runs('pinned') && ($composer = $composerAt(null)) !== null
             && ($pinned = self::pinnedConstraints($composer)) !== []) {
             $add('pinned', 'composer.json pins exact versions: '.implode(', ', $pinned));
         }
@@ -143,7 +152,7 @@ class RepoAuditor
             // N.x branch => [Filament package, major] read from that branch's composer.json.
             $filament = [];
             foreach (array_filter($branches ?? $this->client->listBranches($repo->owner, $repo->name), fn (string $b) => preg_match('/^\d+\.x$/', $b) === 1) as $branch) {
-                $requirement = self::filamentRequirement((string) $this->client->fileContent($repo->owner, $repo->name, 'composer.json', $branch));
+                $requirement = self::filamentRequirement((string) $composerAt($branch));
                 if ($requirement !== null) {
                     $filament[$branch] = $requirement;
                 }
@@ -186,7 +195,60 @@ class RepoAuditor
             }
         }
 
+        if ($this->runs('own-major')) {
+            $versionBranches = array_values(array_filter($branches ?? $this->client->listBranches($repo->owner, $repo->name), fn (string $b) => preg_match('/^\d+\.x$/', $b) === 1));
+            foreach ($versionBranches === [] ? [null] : $versionBranches as $branch) {
+                $composer = $composerAt($branch);
+                if ($composer === null) {
+                    continue;
+                }
+                $behind = self::ownMajorProblems($composer, $repo->owner, fn (string $package) => $this->versions[$package] ??= ($this->releasedVersions)($package));
+                if ($behind !== []) {
+                    $add('own-major', ($branch === null ? '' : "{$branch}: ").'requires an older major of your own packages: '.implode(', ', $behind));
+                }
+            }
+        }
+
         return $findings;
+    }
+
+    /**
+     * The owner's Filament-agnostic requirements (vendor/* except vendor/filament-*, whose major follows the
+     * branch's Filament version) whose constraint does not allow the newest released major.
+     *
+     * @param  Closure(string): list<string>  $releasedVersions
+     * @return list<string> "vendor/package ^1.0 (latest 2.x)"
+     */
+    public static function ownMajorProblems(string $composerJson, string $owner, Closure $releasedVersions): array
+    {
+        $require = (array) (json_decode($composerJson, true)['require'] ?? []);
+        $prefix = strtolower($owner).'/';
+        $problems = [];
+
+        foreach ($require as $package => $constraint) {
+            $name = strtolower((string) $package);
+            if (! is_string($constraint) || ! str_starts_with($name, $prefix) || str_starts_with($name, $prefix.'filament-')) {
+                continue;
+            }
+
+            $majors = [];
+            foreach ($releasedVersions((string) $package) as $version) {
+                if (preg_match('/^v?(\d+)\.\d+\.\d+$/', $version, $m) === 1) {
+                    $majors[] = (int) $m[1];
+                }
+            }
+            if ($majors === []) {
+                continue;
+            }
+
+            $latest = max($majors);
+            $allowed = array_filter(preg_split('/\s*\|\|?\s*/', trim($constraint)) ?: [], fn (string $part) => preg_match('/^[\^~]?v?'.$latest.'(\.\d+|\.\*)*$/', $part) === 1);
+            if ($allowed === []) {
+                $problems[] = "{$package} {$constraint} (latest {$latest}.x)";
+            }
+        }
+
+        return $problems;
     }
 
     /**
