@@ -108,7 +108,7 @@ class RepoAuditor
         $pinned = [];
         foreach (['require', 'require-dev'] as $section) {
             foreach ((array) ($data[$section] ?? []) as $package => $constraint) {
-                if (is_string($constraint) && preg_match('/^v?\d+(\.\d+){0,3}$/', trim($constraint)) === 1) {
+                if (is_string($constraint) && preg_match('/^v?\d+(\.\d+){0,3}(-(stable|rc|beta|alpha|patch|p)\.?\d*)?$/i', trim($constraint)) === 1) {
                     $pinned[] = "{$package} {$constraint}";
                 }
             }
