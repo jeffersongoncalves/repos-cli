@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.0] - 2026-11-18
+
+### Features
+
+- **audit:** Flag starter kits whose shared files drift from FilaKit (#25)
+- **audit:** Flag kits whose composer.lock is behind their own packages (#27)
+
 ## [1.10.0] - 2026-11-18
 
 ### Features
