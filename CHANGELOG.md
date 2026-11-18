@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.0] - 2026-11-18
+
+### Features
+
+- **audit:** Flag requirements below the newest major of your own packages (#28)
+
 ## [1.11.0] - 2026-11-18
 
 ### Features
