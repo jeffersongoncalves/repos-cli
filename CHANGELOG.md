@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.0] - 2026-11-18
+
+### Features
+
+- **audit:** Check README compatibility tables and Dependabot major ignores (#24)
+
 ## [1.9.0] - 2026-11-18
 
 ### Features
