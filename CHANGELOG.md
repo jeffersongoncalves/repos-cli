@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2026-11-18
+
+### Features
+
+- **audit:** Flag composer.json requirements pinned to an exact version (#23)
+
 ## [1.8.1] - 2026-11-17
 
 ### Bug Fixes
