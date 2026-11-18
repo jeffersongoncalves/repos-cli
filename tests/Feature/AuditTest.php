@@ -70,7 +70,7 @@ it('reports nothing for a healthy repo', function () {
         json(['content' => base64_encode("| Branch | Filament |\n|---|---|\n| 1.x | 3.x |\n| 2.x | 4.x |\n| 3.x | 5.x |")]), // README.md
     ]);
 
-    $auditor = new RepoAuditor($client, gitWith(true), RepoAuditor::CHECKS, '/code', "name: automerge\r\n");
+    $auditor = new RepoAuditor($client, gitWith(true), RepoAuditor::CHECKS, '/code', "name: automerge\r\n", fn () => ['1.2.0']);
 
     expect($auditor->audit(repo()))->toBe([]);
 });
@@ -91,12 +91,12 @@ it('reports every problem of a neglected repo', function () {
         json([['name' => 'WidgetServiceProvider.php'], ['name' => 'Widget.php']]), // src
         json(['content' => base64_encode("->hasMigrations(['create_a_table'])")]), // provider misses one stub
         json(['content' => base64_encode('{"require":{"acme/security-headers":"1.0"}}')]), // composer.json: lost caret
-        json(['content' => base64_encode('{"require":{"filament/filament":"^3.0"}}')]), // composer.json on 1.x
+        json(['content' => base64_encode('{"require":{"filament/filament":"^3.0","acme/lib":"^1.0","acme/filament-x":"^1.0"}}')]), // composer.json on 1.x
         json(['content' => base64_encode('{"require":{"filament/filament":"^4.0"}}')]), // 2.x
         json(['content' => base64_encode("| Branch | Filament |\n|---|---|\n| 1.x | 3.x |\n| 2.x | 3.x |")]), // README: wrong 2.x row
     ]);
 
-    $auditor = new RepoAuditor($client, gitWith(false), RepoAuditor::CHECKS, '/code', 'name: automerge');
+    $auditor = new RepoAuditor($client, gitWith(false), RepoAuditor::CHECKS, '/code', 'name: automerge', fn () => ['2.0.0', '1.0.0']);
     $findings = $auditor->audit(repo([
         'defaultBranch' => 'main',
         'description' => '',
@@ -104,7 +104,8 @@ it('reports every problem of a neglected repo', function () {
     ]));
 
     expect(array_map(fn ($f) => $f->check, $findings))
-        ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat'])
+        ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'own-major'])
+        ->and($findings[12]->message)->toBe('1.x: requires an older major of your own packages: acme/lib ^1.0 (latest 2.x)')
         ->and($findings[11]->message)->toBe('README says 2.x is for "3.x", but its composer.json requires Filament 4')
         ->and($findings[3]->message)->toBe('Default branch is main, expected 2.x')
         ->and($findings[6]->message)->toContain('https://ci/run/1')

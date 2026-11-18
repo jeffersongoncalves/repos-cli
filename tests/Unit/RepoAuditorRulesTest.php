@@ -118,6 +118,23 @@ it('lists own packages locked behind their newest release of the same major', fu
         ->and(RepoAuditor::staleOwnPackages('', 'acme', fn () => []))->toBe([]);
 });
 
+it('flags own Filament-agnostic requirements below their newest major', function () {
+    $composer = json_encode(['require' => [
+        'php' => '^8.2',
+        'acme/laravel-a' => '^1.0',
+        'acme/laravel-b' => '^1.0|^2.0',
+        'acme/laravel-c' => '^2.1',
+        'acme/filament-core' => '^1.0',
+        'acme/unreleased' => '^1.0',
+        'other/lib' => '^1.0',
+    ]]);
+    $released = ['acme/laravel-a' => ['2.0.0', '1.4.0'], 'acme/laravel-b' => ['2.0.0'], 'acme/laravel-c' => ['2.1.0', '3.0.0-beta1'], 'acme/filament-core' => ['3.0.0']];
+
+    expect(RepoAuditor::ownMajorProblems($composer, 'Acme', fn (string $p) => $released[$p] ?? []))
+        ->toBe(['acme/laravel-a ^1.0 (latest 2.x)'])
+        ->and(RepoAuditor::ownMajorProblems('', 'acme', fn () => ['9.0.0']))->toBe([]);
+});
+
 it('compares files ignoring line endings and surrounding whitespace', function () {
     expect(RepoAuditor::sameContent("a: 1\r\nb: 2\r\n", "a: 1\nb: 2"))->toBeTrue()
         ->and(RepoAuditor::sameContent("a: 1\n", "a: 2\n"))->toBeFalse();
