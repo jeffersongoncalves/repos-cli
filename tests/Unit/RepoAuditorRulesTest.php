@@ -96,6 +96,27 @@ it('lists the shared kit files that differ from the base', function () {
         ->and(RepoAuditor::kitDrift($base, $base))->toBe([]);
 });
 
+it('lists own packages locked behind their newest release of the same major', function () {
+    $lock = json_encode([
+        'packages' => [
+            ['name' => 'acme/laravel-a', 'version' => '1.2.0'],
+            ['name' => 'acme/filament-b', 'version' => '3.0.1'],
+            ['name' => 'acme/laravel-c', 'version' => 'dev-main'],
+            ['name' => 'other/lib', 'version' => '1.0.0'],
+        ],
+        'packages-dev' => [['name' => 'acme/tool', 'version' => 'v2.0.0']],
+    ]);
+    $released = [
+        'acme/laravel-a' => ['2.0.0', '1.3.1', '1.3.0', '1.2.0', '1.4.0-beta1'],
+        'acme/filament-b' => ['3.0.1', '2.9.0'],
+        'acme/tool' => ['v2.1.0', 'v2.0.0'],
+    ];
+
+    expect(RepoAuditor::staleOwnPackages($lock, 'Acme', fn (string $p) => $released[$p] ?? []))
+        ->toBe(['acme/laravel-a 1.2.0 → 1.3.1', 'acme/tool v2.0.0 → v2.1.0'])
+        ->and(RepoAuditor::staleOwnPackages('', 'acme', fn () => []))->toBe([]);
+});
+
 it('compares files ignoring line endings and surrounding whitespace', function () {
     expect(RepoAuditor::sameContent("a: 1\r\nb: 2\r\n", "a: 1\nb: 2"))->toBeTrue()
         ->and(RepoAuditor::sameContent("a: 1\n", "a: 2\n"))->toBeFalse();
