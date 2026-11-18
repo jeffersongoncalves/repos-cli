@@ -42,6 +42,43 @@ it('lists requirements pinned to an exact version', function () {
         ->and(RepoAuditor::pinnedConstraints('not json'))->toBe([]);
 });
 
+it('reads the Filament package and major a branch requires', function () {
+    expect(RepoAuditor::filamentRequirement('{"require":{"filament/support":"^4.0","filament/filament":"^5.0"}}'))->toBe(['filament/filament', 5])
+        ->and(RepoAuditor::filamentRequirement('{"require":{"filament/tables":"~3.2"}}'))->toBe(['filament/tables', 3])
+        ->and(RepoAuditor::filamentRequirement('{"require":{"acme/analytics-core":"^2.0"}}'))->toBeNull()
+        ->and(RepoAuditor::filamentRequirement(''))->toBeNull();
+});
+
+it('matches the README compatibility table against the version branches', function () {
+    $filament = ['1.x' => ['filament/filament', 3], '2.x' => ['filament/filament', 4], '3.x' => ['filament/filament', 5]];
+    $table = "| Branch | Filament | Package version |\n|---|---|---|\n| **1.x** | 3.x | `^1.0` |\n| 2.x | 4.x | `^2.0` |\n";
+
+    expect(RepoAuditor::compatProblems($table.'| 3.x | 5.x | `^3.0` |', $filament))->toBe([])
+        ->and(RepoAuditor::compatProblems($table, $filament))->toBe(['README compatibility table has no row for 3.x (Filament 5)'])
+        ->and(RepoAuditor::compatProblems($table.'| 3.x | 4.x | `^3.0` |', $filament))
+        ->toBe(['README says 3.x is for "4.x | ^3.0", but its composer.json requires Filament 5'])
+        ->and(RepoAuditor::compatProblems($table.'| 3.x | 5.x | `^3.0` |'."\n| 4.x | 6.x | `^4.0` |", $filament))
+        ->toBe(['README compatibility table lists 4.x, which is not a version branch'])
+        ->and(RepoAuditor::compatProblems("| Filament | Branch |\n|---|---|\n| v3 | `1.x` |\n| Filament v4 | [2.x](https://github.com/a/b/tree/2.x) |\n| ^5.0 | 3.x |", $filament))->toBe([])
+        ->and(RepoAuditor::compatProblems('# Widget', $filament))->toBe(['README has no compatibility table (version branch → Filament)']);
+});
+
+it('expects each version branch to ignore the next Filament major in dependabot.yml', function () {
+    $entry = fn (string $branch, string $ignore) => "  - package-ecosystem: github-actions\n    target-branch: {$branch}\n"
+        ."  - package-ecosystem: composer\n    directory: /\n    target-branch: {$branch}\n{$ignore}";
+    $rule = fn (string $name, string $versions) => "    ignore:\n      - dependency-name: {$name}\n        versions:\n          - '{$versions}'\n";
+    $filament = ['1.x' => ['filament/filament', 3], '2.x' => ['filament/filament', 4]];
+
+    expect(RepoAuditor::dependabotIgnoreProblems($entry('1.x', $rule('filament/filament', '>=4.0')).$entry('2.x', $rule('filament/*', '>=5.0')), $filament))->toBe([])
+        ->and(RepoAuditor::dependabotIgnoreProblems($entry('1.x', $rule('filament/filament', '>=5.0')).$entry('2.x', ''), $filament))->toBe([
+            "dependabot.yml lets 1.x update filament/filament to 4.x: ignore '>=4.0' on its composer entry",
+            "dependabot.yml lets 2.x update filament/filament to 5.x: ignore '>=5.0' on its composer entry",
+        ])
+        ->and(RepoAuditor::dependabotIgnoreProblems($entry('1.x', $rule('acme/filament-analytics-core', '>=2.0')), ['1.x' => ['filament/filament', 3]]))->toBe([])
+        ->and(RepoAuditor::dependabotIgnoreProblems($entry('1.x', "    ignore:\n      - dependency-name: '*'\n        update-types: ['version-update:semver-major']\n"), ['1.x' => ['filament/filament', 3]]))->toBe([])
+        ->and(RepoAuditor::dependabotIgnoreProblems($entry('1.x', ''), ['3.x' => ['filament/filament', 5]]))->toBe(['dependabot.yml has no composer entry for 3.x']);
+});
+
 it('compares files ignoring line endings and surrounding whitespace', function () {
     expect(RepoAuditor::sameContent("a: 1\r\nb: 2\r\n", "a: 1\nb: 2"))->toBeTrue()
         ->and(RepoAuditor::sameContent("a: 1\n", "a: 2\n"))->toBeFalse();
