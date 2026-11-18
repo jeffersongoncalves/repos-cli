@@ -11,7 +11,24 @@ use App\Services\Hosts\GithubClient;
  */
 class RepoAuditor
 {
-    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'dependabot-ignore'];
+    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'dependabot-ignore', 'kit-drift'];
+
+    /**
+     * Files every starter kit keeps identical to its FilaKit base (filakit / filakitv4 / filakitv5): infra and
+     * framework config, not the kit's own features. A fix made in the base must reach every kit.
+     */
+    public const KIT_SHARED_FILES = [
+        '.editorconfig', '.gitattributes', '.github/FUNDING.yml',
+        '.github/workflows/auto-assign.yml', '.github/workflows/auto-release-filament.yml',
+        '.github/workflows/dependabot-auto-merge.yml', '.github/workflows/fix-php-code-style-issues.yml',
+        '.github/workflows/phpstan.yml', '.github/workflows/tests.yml', '.github/workflows/update-changelog.yml',
+        'artisan', 'install.php', 'phpstan.neon.dist', 'phpunit.xml',
+        'config/blade-icons.php', 'config/cache.php', 'config/database.php', 'config/filesystems.php', 'config/logging.php',
+        'config/mail.php', 'config/queue.php', 'config/security-headers.php', 'config/services.php', 'config/session.php',
+    ];
+
+    /** @var array<string, array<string, string>> base kit => its tree, fetched once per run */
+    protected array $baseTrees = [];
 
     /**
      * @param  list<string>  $checks  subset of self::CHECKS to run
@@ -123,7 +140,54 @@ class RepoAuditor
             }
         }
 
+        if ($this->runs('kit-drift') && ($base = self::kitBase($repo->name)) !== null) {
+            $tree = $this->client->treeShas($repo->owner, $repo->name);
+            // Every kit is a Laravel app with FilaKit's install.php (each renames config/filakit.php to its own).
+            if (isset($tree['artisan'], $tree['install.php'])) {
+                $this->baseTrees[$base] ??= $this->client->treeShas($repo->owner, $base);
+                if (($drift = self::kitDrift($tree, $this->baseTrees[$base])) !== []) {
+                    $add('kit-drift', "differs from {$base}: ".implode(', ', $drift));
+                }
+            }
+        }
+
         return $findings;
+    }
+
+    /**
+     * The FilaKit base of a starter kit, by name: "*kitv4" → filakitv4, "*kitv5"/"*themev5" → filakitv5, a v3 or
+     * unversioned kit → filakit. Null for the bases themselves and for anything not named like a kit.
+     */
+    public static function kitBase(string $name): ?string
+    {
+        if (preg_match('/^filakit(v\d+)?$/', $name) === 1 || preg_match('/(kit|theme)(v(\d+))?$/', $name, $m) !== 1) {
+            return null;
+        }
+
+        return match ($m[3] ?? '3') {
+            '4' => 'filakitv4',
+            '5' => 'filakitv5',
+            default => 'filakit',
+        };
+    }
+
+    /**
+     * Shared files whose blob differs from the base's ("(missing)" when the kit lacks one the base has).
+     *
+     * @param  array<string, string>  $kit  path => blob SHA
+     * @param  array<string, string>  $base  path => blob SHA
+     * @return list<string>
+     */
+    public static function kitDrift(array $kit, array $base): array
+    {
+        $drift = [];
+        foreach (self::KIT_SHARED_FILES as $file) {
+            if (isset($base[$file]) && ($kit[$file] ?? null) !== $base[$file]) {
+                $drift[] = isset($kit[$file]) ? $file : "{$file} (missing)";
+            }
+        }
+
+        return $drift;
     }
 
     /**

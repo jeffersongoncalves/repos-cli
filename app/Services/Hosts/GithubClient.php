@@ -132,6 +132,33 @@ class GithubClient extends AbstractApiClient implements HostClient
     }
 
     /**
+     * Every file of a branch (default when null) as path => blob SHA, in one call; [] when the repo or ref is missing.
+     *
+     * @return array<string, string>
+     */
+    public function treeShas(string $owner, string $repo, ?string $ref = null): array
+    {
+        try {
+            $tree = $this->get("repos/{$owner}/{$repo}/git/trees/".($ref ?? 'HEAD'), ['recursive' => 1]);
+        } catch (ApiException $e) {
+            if (in_array($e->statusCode, [404, 409], true)) {
+                return [];
+            }
+
+            throw $e;
+        }
+
+        $files = [];
+        foreach ((array) ($tree['tree'] ?? []) as $entry) {
+            if (is_array($entry) && ($entry['type'] ?? '') === 'blob') {
+                $files[(string) $entry['path']] = (string) $entry['sha'];
+            }
+        }
+
+        return $files;
+    }
+
+    /**
      * Whether "release immutability" is on. Null when the token can't read the setting (403/404), so a
      * token without admin access doesn't turn every repo into a finding.
      */
