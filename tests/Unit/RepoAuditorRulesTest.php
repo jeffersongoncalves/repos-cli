@@ -135,6 +135,23 @@ it('flags own Filament-agnostic requirements below their newest major', function
         ->and(RepoAuditor::ownMajorProblems('', 'acme', fn () => ['9.0.0']))->toBe([]);
 });
 
+it('flags stale and floating changelog-updater-action references', function () {
+    $approved = str_repeat('f', 40);
+    $stale = 'a938690'.str_repeat('0', 33);
+    $step = fn (string $ref) => "    steps:\r\n      - name: Update Changelog\r\n        uses: {$ref}\r\n";
+
+    expect(RepoAuditor::changelogPinProblems($step("stefanzweifel/changelog-updater-action@{$approved} # v1.13.3"), $approved))->toBe([])
+        ->and(RepoAuditor::changelogPinProblems($step("'stefanzweifel/changelog-updater-action@".strtoupper($approved)."'"), $approved))->toBe([])
+        ->and(RepoAuditor::changelogPinProblems($step("stefanzweifel/changelog-updater-action@{$stale} # v1"), $approved))
+        ->toBe(['update-changelog.yml pins changelog-updater-action a938690 (expected fffffff)'])
+        ->and(RepoAuditor::changelogPinProblems("      - uses: \"stefanzweifel/changelog-updater-action@v1\"\n", $approved))
+        ->toBe(['update-changelog.yml uses the floating changelog-updater-action@v1 (expected fffffff)'])
+        ->and(RepoAuditor::changelogPinProblems($step('stefanzweifel/changelog-updater-action@main'), $approved))
+        ->toBe(['update-changelog.yml uses the floating changelog-updater-action@main (expected fffffff)'])
+        ->and(RepoAuditor::changelogPinProblems("      # uses: stefanzweifel/changelog-updater-action@v1\n".$step('stefanzweifel/git-auto-commit-action@v7'), $approved))->toBe([])
+        ->and(RepoAuditor::changelogPinProblems('', $approved))->toBe([]);
+});
+
 it('compares files ignoring line endings and surrounding whitespace', function () {
     expect(RepoAuditor::sameContent("a: 1\r\nb: 2\r\n", "a: 1\nb: 2"))->toBeTrue()
         ->and(RepoAuditor::sameContent("a: 1\n", "a: 2\n"))->toBeFalse();

@@ -27,9 +27,10 @@ class AuditCommand extends Command
         {--host=github : Only github is supported}
         {--profile=default : Named credential profile to use for the API calls}
         {--path= : Folder that should hold a clone of every repo (default: current directory)}
-        {--only= : Comma-separated checks to run (clone,website,description,branch,dependabot,automerge,ci,immutable,tests,migrations,pinned,compat,dependabot-ignore,kit-drift,stale-own,own-major,dependabot-prs,social,catalog)}
+        {--only= : Comma-separated checks to run (clone,website,description,branch,dependabot,automerge,ci,immutable,tests,migrations,pinned,compat,dependabot-ignore,kit-drift,stale-own,own-major,changelog,dependabot-prs,social,catalog)}
         {--skip= : Comma-separated checks to skip}
         {--automerge-template= : Approved dependabot-auto-merge.yml to compare against (automerge check is skipped without it)}
+        {--changelog-updater-sha= : Approved stefanzweifel/changelog-updater-action commit, full SHA (changelog check is skipped without it)}
         {--catalog= : Product catalog (plugins.json) to cross-check against GitHub and Packagist (catalog check is skipped without it)}
         {--catalog-ignore= : Comma-separated vendor/package names the catalog check leaves out (e.g. an app published on Packagist)}
         {--filter= : Only audit repos whose name contains this text}
@@ -39,7 +40,7 @@ class AuditCommand extends Command
         {--qualifier=user : user or org (search used by the dependabot-prs check)}
         {--json : Print the findings as JSON}';
 
-    protected $description = 'Audit every repo of an owner: local clone, website, description, default branch, Dependabot setup, CI, release immutability, PHP repos without tests, migration stubs missing from hasMigrations(), exact version pins in composer.json, README compatibility tables and Dependabot major ignores of multi-branch packages, starter kits drifting from FilaKit or behind their own packages, requirements below the newest major of your own packages, failing Dependabot PRs, social preview and the product catalog';
+    protected $description = 'Audit every repo of an owner: local clone, website, description, default branch, Dependabot setup, CI, release immutability, PHP repos without tests, migration stubs missing from hasMigrations(), exact version pins in composer.json, README compatibility tables and Dependabot major ignores of multi-branch packages, starter kits drifting from FilaKit or behind their own packages, requirements below the newest major of your own packages, stale or floating changelog-updater-action pins, failing Dependabot PRs, social preview and the product catalog';
 
     public function handle(HostClientFactory $factory, GitOperationsService $git, CatalogAuditor $catalogAuditor): int
     {
@@ -63,6 +64,11 @@ class AuditCommand extends Command
                 throw new InvalidArgumentException("Template not found: {$template}");
             }
 
+            $changelogSha = (string) $this->option('changelog-updater-sha');
+            if ($changelogSha !== '' && preg_match('/^[0-9a-f]{40}$/i', $changelogSha) !== 1) {
+                throw new InvalidArgumentException("--changelog-updater-sha must be a full 40-character commit SHA, got: {$changelogSha}");
+            }
+
             $catalog = $this->option('catalog');
             if (is_string($catalog) && $catalog !== '' && ! is_file($catalog)) {
                 throw new InvalidArgumentException("Catalog not found: {$catalog}");
@@ -74,6 +80,7 @@ class AuditCommand extends Command
                 $checks,
                 in_array('clone', $checks, true) ? $this->resolvePath($this->option('path')) : null,
                 is_string($template) && $template !== '' ? (string) file_get_contents($template) : null,
+                changelogUpdaterSha: $changelogSha !== '' ? $changelogSha : null,
             );
 
             $findings = [];

@@ -14,7 +14,7 @@ use GuzzleHttp\Exception\GuzzleException;
  */
 class RepoAuditor
 {
-    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'dependabot-ignore', 'kit-drift', 'stale-own', 'own-major'];
+    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'dependabot-ignore', 'kit-drift', 'stale-own', 'own-major', 'changelog'];
 
     /**
      * Files every starter kit keeps identical to its FilaKit base (filakit / filakitv4 / filakitv5): infra and
@@ -44,6 +44,7 @@ class RepoAuditor
      * @param  string|null  $localPath  folder that should hold a clone of every repo (null skips `clone`)
      * @param  string|null  $automergeTemplate  approved dependabot-auto-merge.yml (null skips `automerge`)
      * @param  (Closure(string): list<string>)|null  $releasedVersions  versions of a package on Packagist
+     * @param  string|null  $changelogUpdaterSha  approved changelog-updater-action commit (null skips `changelog`)
      */
     public function __construct(
         protected GithubClient $client,
@@ -52,6 +53,7 @@ class RepoAuditor
         protected ?string $localPath = null,
         protected ?string $automergeTemplate = null,
         ?Closure $releasedVersions = null,
+        protected ?string $changelogUpdaterSha = null,
     ) {
         $this->releasedVersions = $releasedVersions ?? function (string $package): array {
             try {
@@ -88,6 +90,11 @@ class RepoAuditor
         }
 
         $branches = null;
+        $versionBranches = function () use (&$branches, $repo): array {
+            $branches ??= $this->client->listBranches($repo->owner, $repo->name);
+
+            return array_values(array_filter($branches, fn (string $b) => preg_match('/^\d+\.x$/', $b) === 1));
+        };
         $composers = [];
         $composerAt = function (?string $ref) use (&$composers, $repo): ?string {
             $key = $ref ?? '';
@@ -151,7 +158,7 @@ class RepoAuditor
         if ($this->runs('compat') || $this->runs('dependabot-ignore')) {
             // N.x branch => [Filament package, major] read from that branch's composer.json.
             $filament = [];
-            foreach (array_filter($branches ?? $this->client->listBranches($repo->owner, $repo->name), fn (string $b) => preg_match('/^\d+\.x$/', $b) === 1) as $branch) {
+            foreach ($versionBranches() as $branch) {
                 $requirement = self::filamentRequirement((string) $composerAt($branch));
                 if ($requirement !== null) {
                     $filament[$branch] = $requirement;
@@ -196,8 +203,7 @@ class RepoAuditor
         }
 
         if ($this->runs('own-major')) {
-            $versionBranches = array_values(array_filter($branches ?? $this->client->listBranches($repo->owner, $repo->name), fn (string $b) => preg_match('/^\d+\.x$/', $b) === 1));
-            foreach ($versionBranches === [] ? [null] : $versionBranches as $branch) {
+            foreach ($versionBranches() ?: [null] as $branch) {
                 $composer = $composerAt($branch);
                 if ($composer === null) {
                     continue;
@@ -209,7 +215,40 @@ class RepoAuditor
             }
         }
 
+        if ($this->runs('changelog') && $this->changelogUpdaterSha !== null) {
+            // A release runs the workflow of its tag's commit, so every branch that gets tagged counts.
+            foreach (array_unique([$repo->defaultBranch, ...$versionBranches()], SORT_REGULAR) as $branch) {
+                $workflow = (string) $this->client->fileContent($repo->owner, $repo->name, '.github/workflows/update-changelog.yml', $branch);
+                foreach (self::changelogPinProblems($workflow, $this->changelogUpdaterSha) as $problem) {
+                    $add('changelog', ($branch ?? 'default branch').": {$problem}");
+                }
+            }
+        }
+
         return $findings;
+    }
+
+    /**
+     * The changelog-updater-action references of update-changelog.yml that aren't the approved commit: another SHA,
+     * or a tag/branch (which floats).
+     *
+     * @return list<string>
+     */
+    public static function changelogPinProblems(string $workflow, string $approvedSha): array
+    {
+        preg_match_all('/^\s*(?:-\s+)?uses:\s*[\'"]?stefanzweifel\/changelog-updater-action@([^\s\'"#]+)/mi', $workflow, $m);
+        $expected = substr($approvedSha, 0, 7);
+        $problems = [];
+
+        foreach (array_unique($m[1]) as $ref) {
+            if (preg_match('/^[0-9a-f]{40}$/i', $ref) !== 1) {
+                $problems[] = "update-changelog.yml uses the floating changelog-updater-action@{$ref} (expected {$expected})";
+            } elseif (strcasecmp($ref, $approvedSha) !== 0) {
+                $problems[] = 'update-changelog.yml pins changelog-updater-action '.substr($ref, 0, 7)." (expected {$expected})";
+            }
+        }
+
+        return $problems;
     }
 
     /**
