@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.0] - 2026-11-24
+
+### Features
+
+- **audit:** Flag stale or floating changelog-updater-action pins (#30)
+
 ## [1.12.0] - 2026-11-18
 
 ### Features
