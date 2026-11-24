@@ -8,6 +8,8 @@ use App\Services\Hosts\GithubClient;
 use Closure;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use Symfony\Component\Yaml\Exception\ParseException;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * Per-repository hygiene checks behind `repos audit`.
@@ -236,11 +238,23 @@ class RepoAuditor
      */
     public static function changelogPinProblems(string $workflow, string $approvedSha): array
     {
-        preg_match_all('/^\s*(?:-\s+)?uses:\s*[\'"]?stefanzweifel\/changelog-updater-action@([^\s\'"#]+)/mi', $workflow, $m);
+        try {
+            $data = Yaml::parse($workflow);
+        } catch (ParseException $e) {
+            return ["update-changelog.yml is not valid YAML: {$e->getMessage()}"];
+        }
+
+        $refs = [];
+        foreach ((array) data_get($data, 'jobs.*.steps.*.uses', []) as $uses) {
+            if (is_string($uses) && preg_match('#^stefanzweifel/changelog-updater-action@(.+)$#i', trim($uses), $m) === 1) {
+                $refs[] = $m[1];
+            }
+        }
+
         $expected = substr($approvedSha, 0, 7);
         $problems = [];
 
-        foreach (array_unique($m[1]) as $ref) {
+        foreach (array_unique($refs) as $ref) {
             if (preg_match('/^[0-9a-f]{40}$/i', $ref) !== 1) {
                 $problems[] = "update-changelog.yml uses the floating changelog-updater-action@{$ref} (expected {$expected})";
             } elseif (strcasecmp($ref, $approvedSha) !== 0) {

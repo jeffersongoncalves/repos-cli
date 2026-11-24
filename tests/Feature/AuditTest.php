@@ -279,7 +279,7 @@ it('rejects unknown checks', function () {
 
 it('checks the changelog-updater-action pin on the default branch and every version branch', function () {
     $sha = str_repeat('f', 40);
-    $workflow = fn (string $ref) => json(['content' => base64_encode("- uses: stefanzweifel/changelog-updater-action@{$ref}\n")]);
+    $workflow = fn (string $ref) => json(['content' => base64_encode("jobs:\n  update:\n    steps:\n      - uses: stefanzweifel/changelog-updater-action@{$ref}\n")]);
     $history = [];
     $client = githubClient([
         json([['name' => '1.x'], ['name' => '2.x'], ['name' => '3.x'], ['name' => 'fix/y'], ['name' => 'main']]),
@@ -315,7 +315,7 @@ it('lists stale changelog pins from the command', function () {
         json(['login' => 'acme']),
         json([['name' => 'lib', 'owner' => ['login' => 'acme'], 'ssh_url' => 's', 'default_branch' => 'main', 'description' => 'x']]),
         json([['name' => 'main']]),
-        json(['content' => base64_encode("- uses: stefanzweifel/changelog-updater-action@v1\n")]),
+        json(['content' => base64_encode("jobs:\n  update:\n    steps:\n      - uses: stefanzweifel/changelog-updater-action@v1\n")]),
     ]);
 
     $factory = Mockery::mock(HostClientFactory::class);

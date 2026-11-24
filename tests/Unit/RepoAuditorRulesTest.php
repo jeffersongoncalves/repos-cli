@@ -138,17 +138,24 @@ it('flags own Filament-agnostic requirements below their newest major', function
 it('flags stale and floating changelog-updater-action references', function () {
     $approved = str_repeat('f', 40);
     $stale = 'a938690'.str_repeat('0', 33);
-    $step = fn (string $ref) => "    steps:\r\n      - name: Update Changelog\r\n        uses: {$ref}\r\n";
+    $job = fn (string $steps) => "on:\n  release:\n    types: [released]\njobs:\n  update:\n    runs-on: ubuntu-latest\n    steps:\n{$steps}";
+    $step = fn (string $ref) => str_replace("\n", "\r\n", $job("      - name: Update Changelog\n        uses: {$ref}\n"));
+    $floating = ['update-changelog.yml uses the floating changelog-updater-action@v1 (expected fffffff)'];
 
     expect(RepoAuditor::changelogPinProblems($step("stefanzweifel/changelog-updater-action@{$approved} # v1.13.3"), $approved))->toBe([])
         ->and(RepoAuditor::changelogPinProblems($step("'stefanzweifel/changelog-updater-action@".strtoupper($approved)."'"), $approved))->toBe([])
         ->and(RepoAuditor::changelogPinProblems($step("stefanzweifel/changelog-updater-action@{$stale} # v1"), $approved))
         ->toBe(['update-changelog.yml pins changelog-updater-action a938690 (expected fffffff)'])
-        ->and(RepoAuditor::changelogPinProblems("      - uses: \"stefanzweifel/changelog-updater-action@v1\"\n", $approved))
-        ->toBe(['update-changelog.yml uses the floating changelog-updater-action@v1 (expected fffffff)'])
+        ->and(RepoAuditor::changelogPinProblems($job("      - uses: \"stefanzweifel/changelog-updater-action@v1\"\n"), $approved))->toBe($floating)
+        ->and(RepoAuditor::changelogPinProblems($job("      - { uses: 'stefanzweifel/changelog-updater-action@v1' }\n"), $approved))->toBe($floating)
+        ->and(RepoAuditor::changelogPinProblems($job("      - \"uses\": stefanzweifel/changelog-updater-action@v1\n"), $approved))->toBe($floating)
+        ->and(RepoAuditor::changelogPinProblems($job("      - run: |\n          cat <<'YAML'\n          - uses: stefanzweifel/changelog-updater-action@v1\n          YAML\n"), $approved))->toBe([])
         ->and(RepoAuditor::changelogPinProblems($step('stefanzweifel/changelog-updater-action@main'), $approved))
         ->toBe(['update-changelog.yml uses the floating changelog-updater-action@main (expected fffffff)'])
-        ->and(RepoAuditor::changelogPinProblems("      # uses: stefanzweifel/changelog-updater-action@v1\n".$step('stefanzweifel/git-auto-commit-action@v7'), $approved))->toBe([])
+        ->and(RepoAuditor::changelogPinProblems($job("      # - uses: stefanzweifel/changelog-updater-action@v1\n      - uses: stefanzweifel/git-auto-commit-action@v7\n"), $approved))->toBe([])
+        ->and(RepoAuditor::changelogPinProblems('jobs: [', $approved)[0])->toStartWith('update-changelog.yml is not valid YAML: ')
+        ->and(RepoAuditor::changelogPinProblems("jobs:\n  update:\n    uses: ./.github/workflows/shared.yml\n", $approved))->toBe([])
+        ->and(RepoAuditor::changelogPinProblems('plain text', $approved))->toBe([])
         ->and(RepoAuditor::changelogPinProblems('', $approved))->toBe([]);
 });
 

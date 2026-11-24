@@ -24,7 +24,8 @@
         "laravel/pint": "^1.25.1",
         "mockery/mockery": "^1.6.12",
         "pestphp/pest": "^4.1",
-        "phpstan/phpstan": "^2.1"
+        "phpstan/phpstan": "^2.1",
+        "symfony/yaml": "^7.4"
     },
     "autoload": {
         "psr-4": {
