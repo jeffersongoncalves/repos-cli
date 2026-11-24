@@ -277,6 +277,66 @@ it('rejects unknown checks', function () {
         ->assertExitCode(1);
 });
 
+it('checks the changelog-updater-action pin on the default branch and every version branch', function () {
+    $sha = str_repeat('f', 40);
+    $workflow = fn (string $ref) => json(['content' => base64_encode("jobs:\n  update:\n    steps:\n      - uses: stefanzweifel/changelog-updater-action@{$ref}\n")]);
+    $history = [];
+    $client = githubClient([
+        json([['name' => '1.x'], ['name' => '2.x'], ['name' => '3.x'], ['name' => 'fix/y'], ['name' => 'main']]),
+        $workflow($sha),                                                      // main (default)
+        $workflow(str_repeat('a', 40)),                                       // 1.x: stale
+        $workflow('v1'),                                                      // 2.x: floating
+        json(['message' => 'Not Found'], 404),                                // 3.x: no workflow
+    ], $history);
+
+    $findings = (new RepoAuditor($client, gitWith(true), ['changelog'], changelogUpdaterSha: $sha))->audit(repo(['defaultBranch' => 'main']));
+
+    expect(array_map(fn ($f) => $f->message, $findings))->toBe([
+        '1.x: update-changelog.yml pins changelog-updater-action aaaaaaa (expected fffffff)',
+        '2.x: update-changelog.yml uses the floating changelog-updater-action@v1 (expected fffffff)',
+    ])->and($history)->toHaveCount(5)
+        ->and((string) $history[1]['request']->getUri())->toContain('update-changelog.yml?ref=main');
+});
+
+it('reads each branch once when the default is a version branch, and skips the check without an approved SHA', function () {
+    $history = [];
+    $client = githubClient([
+        json([['name' => '3.x']]),
+        json(['message' => 'Not Found'], 404),
+    ], $history);
+
+    expect((new RepoAuditor($client, gitWith(true), ['changelog'], changelogUpdaterSha: str_repeat('f', 40)))->audit(repo()))->toBe([])
+        ->and((new RepoAuditor($client, gitWith(true), ['changelog']))->audit(repo()))->toBe([])
+        ->and($history)->toHaveCount(2);
+});
+
+it('lists stale changelog pins from the command', function () {
+    $client = githubClient([
+        json(['login' => 'acme']),
+        json([['name' => 'lib', 'owner' => ['login' => 'acme'], 'ssh_url' => 's', 'default_branch' => 'main', 'description' => 'x']]),
+        json([['name' => 'main']]),
+        json(['content' => base64_encode("jobs:\n  update:\n    steps:\n      - uses: stefanzweifel/changelog-updater-action@v1\n")]),
+    ]);
+
+    $factory = Mockery::mock(HostClientFactory::class);
+    $factory->shouldReceive('make')->andReturn($client);
+    $this->app->instance(HostClientFactory::class, $factory);
+
+    $this->artisan('audit', ['owner' => 'acme', '--only' => 'changelog', '--changelog-updater-sha' => str_repeat('f', 40), '--json' => true])
+        ->expectsOutputToContain('main: update-changelog.yml uses the floating changelog-updater-action@v1')
+        ->assertExitCode(1);
+});
+
+it('rejects an abbreviated changelog-updater SHA', function () {
+    $factory = Mockery::mock(HostClientFactory::class);
+    $factory->shouldReceive('make')->andReturn(githubClient([json(['login' => 'acme']), json([])]));
+    $this->app->instance(HostClientFactory::class, $factory);
+
+    $this->artisan('audit', ['owner' => 'acme', '--changelog-updater-sha' => 'f7c43fe'])
+        ->expectsOutputToContain('must be a full 40-character commit SHA')
+        ->assertExitCode(1);
+});
+
 it('checks tests only on PHP repos', function () {
     $history = [];
     $client = githubClient([
