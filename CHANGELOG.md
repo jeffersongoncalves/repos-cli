@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.0] - 2026-11-24
+
+### CI/CD
+
+- Delete the branch after Dependabot auto-merge (#31)
+
+### Features
+
+- **audit:** Flag repos that commit published assets without assets.yml (#33)
+
 ## [1.13.0] - 2026-11-24
 
 ### Features
