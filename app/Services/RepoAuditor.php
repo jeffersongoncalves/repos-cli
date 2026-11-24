@@ -16,7 +16,7 @@ use Symfony\Component\Yaml\Yaml;
  */
 class RepoAuditor
 {
-    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'dependabot-ignore', 'kit-drift', 'stale-own', 'own-major', 'changelog'];
+    public const CHECKS = ['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'dependabot-ignore', 'kit-drift', 'stale-own', 'own-major', 'changelog', 'assets'];
 
     /**
      * Files every starter kit keeps identical to its FilaKit base (filakit / filakitv4 / filakitv5): infra and
@@ -24,7 +24,7 @@ class RepoAuditor
      */
     public const KIT_SHARED_FILES = [
         '.editorconfig', '.gitattributes', '.github/FUNDING.yml',
-        '.github/workflows/auto-assign.yml', '.github/workflows/auto-release-filament.yml',
+        '.github/workflows/assets.yml', '.github/workflows/auto-assign.yml', '.github/workflows/auto-release-filament.yml',
         '.github/workflows/dependabot-auto-merge.yml', '.github/workflows/fix-php-code-style-issues.yml',
         '.github/workflows/phpstan.yml', '.github/workflows/tests.yml', '.github/workflows/update-changelog.yml',
         'artisan', 'install.php', 'phpstan.neon.dist', 'phpunit.xml',
@@ -114,6 +114,10 @@ class RepoAuditor
 
             return $dependabot;
         };
+        $tree = null;
+        $treeOf = function () use (&$tree, $repo): array {
+            return $tree ??= $this->client->treeShas($repo->owner, $repo->name);
+        };
 
         if ($this->runs('branch')) {
             $branches = $this->client->listBranches($repo->owner, $repo->name);
@@ -181,7 +185,7 @@ class RepoAuditor
         }
 
         if (($this->runs('kit-drift') || $this->runs('stale-own')) && ($base = self::kitBase($repo->name)) !== null) {
-            $tree = $this->client->treeShas($repo->owner, $repo->name);
+            $tree = $treeOf();
             // Every kit is a Laravel app with FilaKit's install.php (each renames config/filakit.php to its own).
             if (isset($tree['artisan'], $tree['install.php'])) {
                 if ($this->runs('kit-drift')) {
@@ -227,7 +231,23 @@ class RepoAuditor
             }
         }
 
+        if ($this->runs('assets') && self::lacksAssetsWorkflow($treeOf())) {
+            $add('assets', 'Commits public/vendor/livewire without .github/workflows/assets.yml');
+        }
+
         return $findings;
+    }
+
+    /**
+     * Whether a repo commits Livewire's published assets with no assets.yml to catch them going stale: Dependabot
+     * bumps composer.lock without running post-update-cmd.
+     *
+     * @param  array<string, string>  $tree  path => blob SHA
+     */
+    public static function lacksAssetsWorkflow(array $tree): bool
+    {
+        return ! isset($tree['.github/workflows/assets.yml'])
+            && array_filter(array_keys($tree), fn (string $path) => str_starts_with($path, 'public/vendor/livewire/')) !== [];
     }
 
     /**
