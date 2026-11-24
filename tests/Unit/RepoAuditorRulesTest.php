@@ -97,6 +97,19 @@ it('lists the shared kit files that differ from the base', function () {
         ->and(RepoAuditor::kitDrift($base, $base))->toBe([]);
 });
 
+it('compares assets.yml with the base and flags committed Livewire assets without it', function () {
+    $base = ['.github/workflows/assets.yml' => 'a'];
+    $livewire = ['public/vendor/livewire/manifest.json' => 'm'];
+
+    expect(RepoAuditor::kitDrift([], $base))->toBe(['.github/workflows/assets.yml (missing)'])
+        ->and(RepoAuditor::kitDrift(['.github/workflows/assets.yml' => 'b'], $base))->toBe(['.github/workflows/assets.yml'])
+        ->and(RepoAuditor::kitDrift([], []))->toBe([])
+        ->and(RepoAuditor::lacksAssetsWorkflow($livewire))->toBeTrue()
+        ->and(RepoAuditor::lacksAssetsWorkflow($livewire + $base))->toBeFalse()
+        ->and(RepoAuditor::lacksAssetsWorkflow(['public/vendor/livewire-charts/a.js' => 'x', 'stubs/public/vendor/livewire/a.js' => 'y']))->toBeFalse()
+        ->and(RepoAuditor::lacksAssetsWorkflow([]))->toBeFalse();
+});
+
 it('lists own packages locked behind their newest release of the same major', function () {
     $lock = json_encode([
         'packages' => [

@@ -68,6 +68,10 @@ it('reports nothing for a healthy repo', function () {
         json(['content' => base64_encode('{"require":{"filament/filament":"^4.0"}}')]), // 2.x
         json(['content' => base64_encode('{"require":{"filament/filament":"^5.0"}}')]), // 3.x
         json(['content' => base64_encode("| Branch | Filament |\n|---|---|\n| 1.x | 3.x |\n| 2.x | 4.x |\n| 3.x | 5.x |")]), // README.md
+        json(['tree' => [                                                     // tree
+            ['type' => 'blob', 'path' => 'public/vendor/livewire/manifest.json', 'sha' => 'a'],
+            ['type' => 'blob', 'path' => '.github/workflows/assets.yml', 'sha' => 'b'],
+        ]]),
     ]);
 
     $auditor = new RepoAuditor($client, gitWith(true), RepoAuditor::CHECKS, '/code', "name: automerge\r\n", fn () => ['1.2.0']);
@@ -94,6 +98,7 @@ it('reports every problem of a neglected repo', function () {
         json(['content' => base64_encode('{"require":{"filament/filament":"^3.0","acme/lib":"^1.0","acme/filament-x":"^1.0"}}')]), // composer.json on 1.x
         json(['content' => base64_encode('{"require":{"filament/filament":"^4.0"}}')]), // 2.x
         json(['content' => base64_encode("| Branch | Filament |\n|---|---|\n| 1.x | 3.x |\n| 2.x | 3.x |")]), // README: wrong 2.x row
+        json(['tree' => [['type' => 'blob', 'path' => 'public/vendor/livewire/manifest.json', 'sha' => 'a']]]), // no assets.yml
     ]);
 
     $auditor = new RepoAuditor($client, gitWith(false), RepoAuditor::CHECKS, '/code', 'name: automerge', fn () => ['2.0.0', '1.0.0']);
@@ -104,7 +109,8 @@ it('reports every problem of a neglected repo', function () {
     ]));
 
     expect(array_map(fn ($f) => $f->check, $findings))
-        ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'own-major'])
+        ->toBe(['clone', 'website', 'description', 'branch', 'dependabot', 'automerge', 'ci', 'immutable', 'tests', 'migrations', 'pinned', 'compat', 'own-major', 'assets'])
+        ->and($findings[13]->message)->toBe('Commits public/vendor/livewire without .github/workflows/assets.yml')
         ->and($findings[12]->message)->toBe('1.x: requires an older major of your own packages: acme/lib ^1.0 (latest 2.x)')
         ->and($findings[11]->message)->toBe('README says 2.x is for "3.x", but its composer.json requires Filament 4')
         ->and($findings[3]->message)->toBe('Default branch is main, expected 2.x')
@@ -308,6 +314,22 @@ it('reads each branch once when the default is a version branch, and skips the c
     expect((new RepoAuditor($client, gitWith(true), ['changelog'], changelogUpdaterSha: str_repeat('f', 40)))->audit(repo()))->toBe([])
         ->and((new RepoAuditor($client, gitWith(true), ['changelog']))->audit(repo()))->toBe([])
         ->and($history)->toHaveCount(2);
+});
+
+it('fetches the tree once for kit-drift and assets', function () {
+    $history = [];
+    $blob = fn (string $path) => ['type' => 'blob', 'path' => $path, 'sha' => 'a'];
+    $client = githubClient([
+        json(['tree' => array_map($blob, ['artisan', 'install.php', 'public/vendor/livewire/manifest.json'])]), // kit
+        json(['tree' => array_map($blob, ['artisan', 'install.php', '.github/workflows/assets.yml'])]),         // filakitv5
+    ], $history);
+
+    $findings = (new RepoAuditor($client, gitWith(true), ['kit-drift', 'assets']))->audit(repo(['name' => 'mfakitv5']));
+
+    expect(array_map(fn ($f) => $f->message, $findings))->toBe([
+        'differs from filakitv5: .github/workflows/assets.yml (missing)',
+        'Commits public/vendor/livewire without .github/workflows/assets.yml',
+    ])->and($history)->toHaveCount(2);
 });
 
 it('lists stale changelog pins from the command', function () {
